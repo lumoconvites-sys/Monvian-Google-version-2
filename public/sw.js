@@ -1,6 +1,6 @@
 // Monvian PWA Service Worker - Offline Caching Engine for Spots & Assets
-const STATIC_CACHE = 'monvian-static-v9';
-const API_CACHE = 'monvian-api-v7';
+const STATIC_CACHE = 'monvian-static-v10';
+const API_CACHE = 'monvian-api-v8';
 const IMAGES_CACHE = 'monvian-images-v8';
 const MAX_IMAGE_CACHE_ENTRIES = 120;
 
@@ -71,6 +71,8 @@ self.addEventListener('fetch', (event) => {
     request.headers.has('Authorization') ||
     request.headers.has('apikey') ||
     url.pathname.startsWith('/api/auth/') ||
+    url.pathname.startsWith('/__/') ||
+    url.pathname.startsWith('/auth/') ||
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('firebaseapp.com') ||

@@ -23,6 +23,7 @@ import {
   googleSignIn,
   checkGoogleRedirectResult,
   setCachedAccessToken,
+  getFreshFirebaseIdToken,
   ensureFirebaseEmailSession,
   signOut,
 } from '../lib/firebase';
@@ -1030,21 +1031,53 @@ export function AuthScreen({
     idToken?: string
   ) => {
     setLoginPreparingMessage('Carregando suas informações…');
-    setLoginPreparingAvatar(gUser?.photoURL ? String(gUser.photoURL) : null);
+    const providerPhoto =
+      gUser?.photoURL ||
+      (Array.isArray(gUser?.providerData)
+        ? gUser.providerData.find((p: any) => p?.photoURL)?.photoURL
+        : null);
+    setLoginPreparingAvatar(providerPhoto ? String(providerPhoto) : null);
     setShowLoginPreparingAvatar(false);
     setIsGoogleAccountPreparing(true);
     setCachedAccessToken(accessToken || null);
+
+    let resolvedIdToken = idToken || '';
+    if (!resolvedIdToken && typeof gUser?.getIdToken === 'function') {
+      try {
+        resolvedIdToken = await gUser.getIdToken();
+      } catch {}
+    }
+    if (!resolvedIdToken) {
+      resolvedIdToken = (await getFreshFirebaseIdToken(true)) || '';
+    }
+
+    const resolvedEmail = String(
+      gUser?.email ||
+        (Array.isArray(gUser?.providerData)
+          ? gUser.providerData.find((p: any) => p?.email)?.email
+          : '') ||
+        ''
+    )
+      .trim()
+      .toLowerCase();
+
+    const resolvedDisplayName =
+      gUser?.displayName ||
+      (Array.isArray(gUser?.providerData)
+        ? gUser.providerData.find((p: any) => p?.displayName)?.displayName
+        : '') ||
+      (resolvedEmail ? resolvedEmail.split('@')[0] : 'Usuário');
 
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: gUser.email,
-        name: gUser.displayName || (gUser.email ? gUser.email.split('@')[0] : 'Usuário'),
-        avatar_url: gUser.photoURL || undefined,
-        google_uid: gUser.uid || undefined,
-        idToken: idToken || undefined,
+        email: resolvedEmail || gUser?.email,
+        name: resolvedDisplayName,
+        avatar_url: providerPhoto || undefined,
+        google_uid: gUser?.uid || undefined,
+        idToken: resolvedIdToken || undefined,
       }),
     });
 

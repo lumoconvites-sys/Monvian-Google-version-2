@@ -27,14 +27,16 @@ import {
 } from '../src/server/serverlessFinanceEngine.js';
 
 const EXPECTED_FIREBASE_PROJECT_ID = 'inspired-nirvana-5dtd0';
-let cachedFirebaseConfig: { apiKey: string; projectId: string } | null = null;
+const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-monvian-57f74cb5-b162-47d6-acac-3774c885a8c4';
+let cachedFirebaseConfig: { apiKey: string; projectId: string; firestoreDatabaseId: string } | null = null;
 let cachedGoogleCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
 
-function getFirebaseConfigServerless(): { apiKey: string; projectId: string } {
+function getFirebaseConfigServerless(): { apiKey: string; projectId: string; firestoreDatabaseId: string } {
   if (cachedFirebaseConfig !== null) return cachedFirebaseConfig;
 
   let fileApiKey = '';
   let fileProjectId = EXPECTED_FIREBASE_PROJECT_ID;
+  let fileDatabaseId = DEFAULT_FIRESTORE_DATABASE_ID;
 
   const candidatePaths: string[] = [];
   try {
@@ -49,7 +51,9 @@ function getFirebaseConfigServerless(): { apiKey: string; projectId: string } {
         const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
         const k = String(parsed?.apiKey || '').trim();
         const pid = String(parsed?.projectId || '').trim();
+        const dbId = String(parsed?.firestoreDatabaseId || '').trim();
         if (pid) fileProjectId = pid;
+        if (dbId) fileDatabaseId = dbId;
         if (k && k.startsWith('AIza')) {
           fileApiKey = k;
           break;
@@ -73,8 +77,170 @@ function getFirebaseConfigServerless(): { apiKey: string; projectId: string } {
   cachedFirebaseConfig = {
     projectId: fileProjectId || EXPECTED_FIREBASE_PROJECT_ID,
     apiKey: fileApiKey || (envMatchesProject ? envKey : ''),
+    firestoreDatabaseId: fileDatabaseId || DEFAULT_FIRESTORE_DATABASE_ID,
   };
   return cachedFirebaseConfig;
+}
+
+function getFirestoreBaseUrlServerless(): string {
+  const { projectId, firestoreDatabaseId } = getFirebaseConfigServerless();
+  const dbSegment = firestoreDatabaseId || '(default)';
+  return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(dbSegment)}/documents`;
+}
+
+function fromFirestoreValueServerless(val: any): any {
+  if (!val || typeof val !== 'object') return null;
+  if ('stringValue' in val) return String(val.stringValue);
+  if ('integerValue' in val) return Number(val.integerValue);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('booleanValue' in val) return Boolean(val.booleanValue);
+  if ('nullValue' in val) return null;
+  if ('timestampValue' in val) return String(val.timestampValue);
+  if ('arrayValue' in val) {
+    const values = Array.isArray(val.arrayValue?.values) ? val.arrayValue.values : [];
+    return values.map(fromFirestoreValueServerless);
+  }
+  if ('mapValue' in val) {
+    return fromFirestoreFieldsServerless(val.mapValue?.fields || {});
+  }
+  return null;
+}
+
+function fromFirestoreFieldsServerless(fields: Record<string, any> | undefined): Record<string, any> {
+  if (!fields || typeof fields !== 'object') return {};
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    out[k] = fromFirestoreValueServerless(v);
+  }
+  return out;
+}
+
+function toFirestoreValueServerless(val: any): any {
+  if (val === null || val === undefined) return { nullValue: null };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number') {
+    if (!Number.isFinite(val)) return { integerValue: '0' };
+    return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+  }
+  if (typeof val === 'string') return { stringValue: val };
+  if (Array.isArray(val)) {
+    return { arrayValue: { values: val.map(toFirestoreValueServerless) } };
+  }
+  if (typeof val === 'object') {
+    return { mapValue: { fields: toFirestoreFieldsServerless(val) } };
+  }
+  return { stringValue: String(val) };
+}
+
+function toFirestoreFieldsServerless(obj: Record<string, any>): Record<string, any> {
+  const fields: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    fields[k] = toFirestoreValueServerless(v);
+  }
+  return fields;
+}
+
+async function getFirestoreDocServerless(collectionName: string, docId: string): Promise<Record<string, any> | null> {
+  const cleanId = String(docId || '').trim();
+  if (!cleanId) return null;
+  const url = `${getFirestoreBaseUrlServerless()}/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+    clearTimeout(timer);
+    if (!resp.ok) return null;
+    const json: any = await resp.json();
+    if (!json?.fields) return null;
+    return fromFirestoreFieldsServerless(json.fields);
+  } catch {
+    return null;
+  }
+}
+
+async function upsertFirestoreDocServerless(
+  collectionName: string,
+  docId: string,
+  data: Record<string, any>,
+  merge = true
+): Promise<Record<string, any> | null> {
+  const cleanId = String(docId || '').trim();
+  if (!cleanId || !data || typeof data !== 'object') return null;
+  const keys = Object.keys(data).filter((k) => data[k] !== undefined);
+  if (keys.length === 0) return null;
+
+  const baseUrl = `${getFirestoreBaseUrlServerless()}/${encodeURIComponent(collectionName)}/${encodeURIComponent(cleanId)}`;
+  const maskQuery = merge
+    ? '?' + keys.map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&')
+    : '';
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const resp = await fetch(`${baseUrl}${maskQuery}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: toFirestoreFieldsServerless(data) }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return null;
+    const json: any = await resp.json();
+    return json?.fields ? fromFirestoreFieldsServerless(json.fields) : data;
+  } catch {
+    return null;
+  }
+}
+
+async function queryFirestoreCollectionByFieldServerless(
+  collectionName: string,
+  fieldPath: string,
+  value: string,
+  limit = 1
+): Promise<Record<string, any>[]> {
+  const url = `${getFirestoreBaseUrlServerless()}:runQuery`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: collectionName }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath },
+              op: 'EQUAL',
+              value: { stringValue: value },
+            },
+          },
+          limit,
+        },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return [];
+    const rows: any[] = await resp.json();
+    if (!Array.isArray(rows)) return [];
+    const results: Record<string, any>[] = [];
+    for (const r of rows) {
+      if (r?.document?.fields) {
+        results.push(fromFirestoreFieldsServerless(r.document.fields));
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+function deriveDeterministicUserId(emailOrId: string): number {
+  const clean = String(emailOrId || '').trim().toLowerCase();
+  if (isPrimaryAdmin(clean)) return 75;
+  const digest = crypto.createHash('sha256').update(clean || 'explorador').digest();
+  return 10000 + (digest.readUInt32BE(0) % 900000000);
 }
 
 async function fetchGoogleSecureTokenCerts(): Promise<Record<string, string> | null> {
@@ -133,11 +299,19 @@ async function verifyFirebaseIdTokenWithPublicCerts(
     if (!payload?.sub || typeof payload.sub !== 'string') return null;
     if (typeof payload?.exp !== 'number' || payload.exp <= nowSec) return null;
     if (typeof payload?.iat === 'number' && payload.iat > nowSec + 300) return null;
-    if (!payload?.email || typeof payload.email !== 'string') return null;
+
+    const identityEmails = payload?.firebase?.identities?.email;
+    const fallbackIdentityEmail =
+      Array.isArray(identityEmails) && typeof identityEmails[0] === 'string'
+        ? identityEmails[0]
+        : '';
+    const resolvedEmail = String(payload?.email || fallbackIdentityEmail || '')
+      .trim()
+      .toLowerCase();
 
     return {
       uid: String(payload.sub),
-      email: String(payload.email).trim().toLowerCase(),
+      email: resolvedEmail,
       name: payload.name ? String(payload.name).trim() : undefined,
       avatarUrl: payload.picture ? String(payload.picture).trim() : undefined,
     };
@@ -215,10 +389,12 @@ function sanitizeBackendAuthError(err: any, fallback = 'Não foi possível conec
     lower.includes('jwt') ||
     lower.includes('fetch') ||
     lower.includes('timeout') ||
-    lower.includes('econn')
+    lower.includes('econn') ||
+    lower.includes('exceed_cached_egress_quota') ||
+    lower.includes('restricted due to')
   ) {
     console.error('[Monvian API Auth Diagnostic]', raw);
-    return 'Não foi possível conectar. Tente novamente.';
+    return fallback;
   }
   return raw;
 }
@@ -231,12 +407,13 @@ async function verifyFirebaseIdTokenServerless(
 
   // 1. Primary: Cryptographic RS256 verification against Google's official public X.509 certs (zero API key dependency)
   const certVerified = await verifyFirebaseIdTokenWithPublicCerts(idToken, projectId);
-  if (certVerified) {
+  if (certVerified && certVerified.email) {
     return certVerified;
   }
 
-  // 2. Fallback: Firebase Identity Toolkit accounts:lookup
+  // 2. Fallback: Firebase Identity Toolkit accounts:lookup (also resolves providerUserInfo email if top-level claim was omitted)
   if (!apiKey) {
+    if (certVerified) return certVerified;
     console.error('[Monvian API Auth] Firebase API key unavailable for fallback token verification.');
     return null;
   }
@@ -251,19 +428,37 @@ async function verifyFirebaseIdTokenServerless(
       }
     );
     if (!resp.ok) {
+      if (certVerified) return certVerified;
       console.error('[Monvian API Auth] Identity Toolkit rejected token with status:', resp.status);
       return null;
     }
     const json: any = await resp.json();
     const fbUser = Array.isArray(json?.users) ? json.users[0] : null;
-    if (!fbUser?.email) return null;
+    if (!fbUser) return certVerified || null;
+    const providerInfo = Array.isArray(fbUser.providerUserInfo) ? fbUser.providerUserInfo : [];
+    const providerEmail = providerInfo.find((p: any) => typeof p?.email === 'string' && p.email.includes('@'))?.email || '';
+    const providerName = providerInfo.find((p: any) => typeof p?.displayName === 'string' && p.displayName.trim())?.displayName || '';
+    const providerPhoto = providerInfo.find((p: any) => typeof p?.photoUrl === 'string' && p.photoUrl.trim())?.photoUrl || '';
+    const resolvedEmail = String(fbUser.email || providerEmail || certVerified?.email || '')
+      .trim()
+      .toLowerCase();
+    if (!resolvedEmail && !fbUser.localId) return null;
     return {
-      uid: String(fbUser.localId || ''),
-      email: String(fbUser.email).trim().toLowerCase(),
-      name: fbUser.displayName ? String(fbUser.displayName).trim() : undefined,
-      avatarUrl: fbUser.photoUrl ? String(fbUser.photoUrl).trim() : undefined,
+      uid: String(fbUser.localId || certVerified?.uid || ''),
+      email: resolvedEmail,
+      name: fbUser.displayName
+        ? String(fbUser.displayName).trim()
+        : providerName
+          ? String(providerName).trim()
+          : certVerified?.name,
+      avatarUrl: fbUser.photoUrl
+        ? String(fbUser.photoUrl).trim()
+        : providerPhoto
+          ? String(providerPhoto).trim()
+          : certVerified?.avatarUrl,
     };
   } catch (err: any) {
+    if (certVerified) return certVerified;
     console.error('[Monvian API Auth] Identity Toolkit lookup failed:', err?.message || err);
     return null;
   }
@@ -278,6 +473,7 @@ function isPrimaryAdmin(email?: string | null): boolean {
 
 function formatSafeUser(u: any) {
   if (!u) return null;
+  const cleanEmail = String(u.email || u.whatsapp || '').trim().toLowerCase();
   const isAdm =
     isPrimaryAdmin(u.email) ||
     isPrimaryAdmin(u.whatsapp) ||
@@ -291,10 +487,14 @@ function formatSafeUser(u: any) {
       : u.onboarding_completed === 0
         ? 'pending'
         : 'completed';
+  const resolvedId =
+    u.id !== undefined && u.id !== null && Number.isFinite(Number(u.id)) && Number(u.id) > 0
+      ? Number(u.id)
+      : deriveDeterministicUserId(cleanEmail);
   return {
-    id: u.id,
-    name: u.name || (u.email ? u.email.split('@')[0] : 'Explorador'),
-    username: u.username || (u.email ? u.email.split('@')[0] : 'explorador'),
+    id: resolvedId,
+    name: u.name || (cleanEmail ? cleanEmail.split('@')[0] : 'Explorador'),
+    username: u.username || (cleanEmail ? cleanEmail.split('@')[0] : 'explorador'),
     email: u.email || u.whatsapp || '',
     whatsapp: u.whatsapp || u.email || '',
     role: isAdm ? 'admin' : (u.role || 'user'),
@@ -335,10 +535,38 @@ async function readPersistedOnboardingFlags(email: string): Promise<PersistedOnb
       .select('value')
       .eq('key', `user_onboarding_flags:${clean}`)
       .maybeSingle();
-    if (!data?.value) return null;
-    const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-    if (parsed && typeof parsed === 'object') {
-      return parsed as PersistedOnboardingFlags;
+    if (data?.value) {
+      const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+      if (parsed && typeof parsed === 'object') {
+        return parsed as PersistedOnboardingFlags;
+      }
+    }
+  } catch {}
+
+  try {
+    const fsDoc = await getFirestoreDocServerless('system_settings', `user_onboarding_flags:${clean}`);
+    if (fsDoc?.value) {
+      const parsed = typeof fsDoc.value === 'string' ? JSON.parse(fsDoc.value) : fsDoc.value;
+      if (parsed && typeof parsed === 'object') {
+        return parsed as PersistedOnboardingFlags;
+      }
+    }
+    const fsUser = await getFirestoreDocServerless('users', clean);
+    if (fsUser) {
+      const flags: PersistedOnboardingFlags = {};
+      if (typeof fsUser.welcome_card_seen === 'number') flags.welcome_card_seen = fsUser.welcome_card_seen;
+      if (typeof fsUser.globe_intro_seen === 'number') flags.globe_intro_seen = fsUser.globe_intro_seen;
+      if (
+        fsUser.map_tutorial_status === 'pending' ||
+        fsUser.map_tutorial_status === 'completed' ||
+        fsUser.map_tutorial_status === 'skipped'
+      ) {
+        flags.map_tutorial_status = fsUser.map_tutorial_status;
+      }
+      if (fsUser.map_tutorial_updated_at) {
+        flags.map_tutorial_updated_at = String(fsUser.map_tutorial_updated_at);
+      }
+      if (Object.keys(flags).length > 0) return flags;
     }
   } catch {}
   return null;
@@ -355,18 +583,47 @@ async function writePersistedOnboardingFlags(
     ...patch,
   };
   if (clean) {
-    try {
-      await supabase
-        .from('system_settings')
-        .upsert(
-          {
-            key: `user_onboarding_flags:${clean}`,
-            value: JSON.stringify(merged),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'key' }
-        );
-    } catch {}
+    const nowIso = new Date().toISOString();
+    await Promise.allSettled([
+      (async () => {
+        try {
+          await supabase
+            .from('system_settings')
+            .upsert(
+              {
+                key: `user_onboarding_flags:${clean}`,
+                value: JSON.stringify(merged),
+                updated_at: nowIso,
+              },
+              { onConflict: 'key' }
+            );
+        } catch {}
+      })(),
+      upsertFirestoreDocServerless(
+        'system_settings',
+        `user_onboarding_flags:${clean}`,
+        {
+          key: `user_onboarding_flags:${clean}`,
+          value: JSON.stringify(merged),
+          updated_at: nowIso,
+        },
+        true
+      ),
+      upsertFirestoreDocServerless(
+        'users',
+        clean,
+        {
+          ...(typeof merged.welcome_card_seen === 'number' ? { welcome_card_seen: merged.welcome_card_seen } : {}),
+          ...(typeof merged.globe_intro_seen === 'number' ? { globe_intro_seen: merged.globe_intro_seen } : {}),
+          ...(merged.map_tutorial_status ? { map_tutorial_status: merged.map_tutorial_status } : {}),
+          ...(merged.map_tutorial_updated_at !== undefined
+            ? { map_tutorial_updated_at: merged.map_tutorial_updated_at }
+            : {}),
+          updated_at: nowIso,
+        },
+        true
+      ),
+    ]);
   }
   return merged;
 }
@@ -413,10 +670,12 @@ async function generateUniqueUsernameServerless(
   const base = cleaned.length >= 3 ? cleaned : `explorador${Math.floor(100 + Math.random() * 900)}`;
 
   try {
-    const { data: rows } = await supabase
+    const { data: rows, error } = await supabase
       .from('users')
       .select('id, username_normalized')
       .ilike('username_normalized', `${base}%`);
+
+    if (error) throw error;
 
     const taken = new Set<string>();
     for (const r of rows || []) {
@@ -435,8 +694,7 @@ async function generateUniqueUsernameServerless(
     const candidate = `${base}${counter}`;
     return { username: candidate, username_normalized: candidate };
   } catch {
-    const fallback = `${base}${Math.floor(10 + Math.random() * 89)}`;
-    return { username: fallback, username_normalized: fallback };
+    return { username: base, username_normalized: base };
   }
 }
 
@@ -469,10 +727,39 @@ async function resolveAvatarUrlServerless(rawAvatar?: string, folder = 'avatars'
   return trimmed;
 }
 
+function normalizeFirestoreUserRow(fsDoc: Record<string, any> | null, fallbackEmail?: string): any | null {
+  if (!fsDoc || typeof fsDoc !== 'object') return null;
+  const email = String(fsDoc.email || fsDoc.whatsapp || fallbackEmail || '')
+    .trim()
+    .toLowerCase();
+  if (!email) return null;
+  const id =
+    fsDoc.id !== undefined && fsDoc.id !== null && Number.isFinite(Number(fsDoc.id)) && Number(fsDoc.id) > 0
+      ? Number(fsDoc.id)
+      : deriveDeterministicUserId(email);
+  return {
+    ...fsDoc,
+    id,
+    email,
+    whatsapp: fsDoc.whatsapp || email,
+    name: fsDoc.name || email.split('@')[0],
+    username: fsDoc.username || email.split('@')[0],
+    username_normalized: String(fsDoc.username_normalized || fsDoc.username || email.split('@')[0]).toLowerCase(),
+    role: isPrimaryAdmin(email) || fsDoc.role === 'admin' ? 'admin' : (fsDoc.role || 'user'),
+    is_gold: isPrimaryAdmin(email) || fsDoc.role === 'admin' || Number(fsDoc.is_gold) === 1 ? 1 : 0,
+    is_premium: isPrimaryAdmin(email) || fsDoc.role === 'admin' || Number(fsDoc.is_premium) === 1 ? 1 : 0,
+    plan: isPrimaryAdmin(email) || fsDoc.role === 'admin' || Number(fsDoc.is_gold) === 1 ? 'gold' : (fsDoc.plan || 'beta'),
+    avatar_url: fsDoc.avatar_url || '/fotoperfil.png',
+    onboarding_completed: fsDoc.onboarding_completed !== undefined ? Number(fsDoc.onboarding_completed) : 1,
+    onboarding_step: fsDoc.onboarding_step !== undefined ? Number(fsDoc.onboarding_step) : 1,
+  };
+}
+
 async function findUserByEmailOrIdentifier(identifier: string): Promise<any | null> {
   const clean = String(identifier || '').trim().toLowerCase().replace(/^@+/, '');
   if (!clean) return null;
 
+  // 1. Try Supabase primary table first
   try {
     const { data: exactEmail } = await supabase
       .from('users')
@@ -512,13 +799,32 @@ async function findUserByEmailOrIdentifier(identifier: string): Promise<any | nu
     if (exactUsername && exactUsername.length > 0) return exactUsername[0];
   } catch {}
 
+  // 2. Resilient fallback: Check Cloud Firestore (users collection keyed by email or queried by email/username)
+  try {
+    if (clean.includes('@')) {
+      const directDoc = await getFirestoreDocServerless('users', clean);
+      if (directDoc) {
+        return normalizeFirestoreUserRow(directDoc, clean);
+      }
+    }
+    const byEmail = await queryFirestoreCollectionByFieldServerless('users', 'email', clean, 1);
+    if (byEmail.length > 0) {
+      return normalizeFirestoreUserRow(byEmail[0], clean);
+    }
+    const byUsername = await queryFirestoreCollectionByFieldServerless('users', 'username', clean, 1);
+    if (byUsername.length > 0) {
+      return normalizeFirestoreUserRow(byUsername[0]);
+    }
+  } catch {}
+
   return null;
 }
 
+const DEFAULT_FALLBACK_SESSION_SECRET = 'monvian-persistent-session-hmac-secret-2026-v1';
 const SESSION_SIGNING_SECRET =
   process.env.SESSION_SECRET ||
   process.env.JWT_SECRET ||
-  crypto.randomBytes(32).toString('hex');
+  DEFAULT_FALLBACK_SESSION_SECRET;
 const SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 const inMemoryRevokedTokenHashes = new Set<string>();
@@ -532,15 +838,27 @@ function signPersistentSessionToken(user: {
   email?: string | null;
   whatsapp?: string | null;
   role?: string | null;
+  name?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  onboarding_completed?: number | null;
 }): string {
   const cleanEmail = String(user.email || user.whatsapp || '')
     .trim()
     .toLowerCase();
   const now = Date.now();
   const payloadObj = {
-    uid: user.id,
+    uid: user.id || deriveDeterministicUserId(cleanEmail),
     email: cleanEmail,
     role: isPrimaryAdmin(cleanEmail) || user.role === 'admin' ? 'admin' : 'user',
+    name: user.name ? String(user.name) : undefined,
+    username: user.username ? String(user.username) : undefined,
+    avatar_url:
+      user.avatar_url && !String(user.avatar_url).startsWith('data:')
+        ? String(user.avatar_url)
+        : undefined,
+    onboarding_completed:
+      typeof user.onboarding_completed === 'number' ? user.onboarding_completed : undefined,
     iat: now,
     exp: now + SESSION_TTL_MS,
     jti: crypto.randomUUID(),
@@ -557,6 +875,10 @@ function verifySignedSessionToken(token: string): {
   uid: number | string;
   email: string;
   role: string;
+  name?: string;
+  username?: string;
+  avatar_url?: string;
+  onboarding_completed?: number;
   iat: number;
   exp: number;
   jti: string;
@@ -568,13 +890,25 @@ function verifySignedSessionToken(token: string): {
   if (!payloadB64 || !sigB64) return null;
 
   try {
-    const expectedSig = crypto
-      .createHmac('sha256', SESSION_SIGNING_SECRET)
-      .update(payloadB64)
-      .digest();
     const providedSig = Buffer.from(sigB64, 'base64url');
-    if (expectedSig.length !== providedSig.length) return null;
-    if (!crypto.timingSafeEqual(expectedSig, providedSig)) return null;
+    const candidateSecrets = Array.from(
+      new Set([SESSION_SIGNING_SECRET, DEFAULT_FALLBACK_SESSION_SECRET])
+    );
+    let matched = false;
+    for (const secret of candidateSecrets) {
+      const expectedSig = crypto
+        .createHmac('sha256', secret)
+        .update(payloadB64)
+        .digest();
+      if (
+        expectedSig.length === providedSig.length &&
+        crypto.timingSafeEqual(expectedSig, providedSig)
+      ) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) return null;
 
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
     if (!payload || !payload.exp || Number(payload.exp) <= Date.now()) return null;
@@ -582,6 +916,11 @@ function verifySignedSessionToken(token: string): {
       uid: payload.uid,
       email: String(payload.email || '').trim().toLowerCase(),
       role: String(payload.role || 'user'),
+      name: payload.name ? String(payload.name) : undefined,
+      username: payload.username ? String(payload.username) : undefined,
+      avatar_url: payload.avatar_url ? String(payload.avatar_url) : undefined,
+      onboarding_completed:
+        typeof payload.onboarding_completed === 'number' ? payload.onboarding_completed : undefined,
       iat: Number(payload.iat || 0),
       exp: Number(payload.exp || 0),
       jti: String(payload.jti || ''),
@@ -681,15 +1020,20 @@ async function getAuthUser(req: any, strictSession = false): Promise<any | null>
         if (userRow.is_banned === 1 && !isPrimaryAdmin(userRow.email)) return null;
         return await enrichSafeUserWithOnboardingFlags(formatSafeUser(userRow));
       }
-      if (signed.email && isPrimaryAdmin(signed.email)) {
-        return formatSafeUser({
-          id: signed.uid || 75,
+      if (signed.email) {
+        const isAdm = isPrimaryAdmin(signed.email) || signed.role === 'admin';
+        const fallbackFromToken = formatSafeUser({
+          id: signed.uid || deriveDeterministicUserId(signed.email),
           email: signed.email,
-          name: 'Mario Admin',
-          username: 'marioyesk',
-          role: 'admin',
-          is_gold: 1,
+          whatsapp: signed.email,
+          name: signed.name || (isAdm ? 'Mario Admin' : signed.email.split('@')[0]),
+          username: signed.username || (isAdm ? 'marioyesk' : signed.email.split('@')[0]),
+          avatar_url: signed.avatar_url || '/fotoperfil.png',
+          role: isAdm ? 'admin' : 'user',
+          is_gold: isAdm ? 1 : 0,
+          onboarding_completed: signed.onboarding_completed ?? 1,
         });
+        return await enrichSafeUserWithOnboardingFlags(fallbackFromToken);
       }
     }
 
@@ -1288,7 +1632,7 @@ export default async function handler(req: any, res: any) {
 
       const nowIso = new Date().toISOString();
 
-      // Ensure user exists in public.users with a valid integer ID
+      // Ensure user exists in public.users / Firestore with a valid integer ID
       if (!user) {
         const cleanEmail = emailToAuth || `${loginId}@monvian.com`;
         const { username, username_normalized } = await generateUniqueUsernameServerless(
@@ -1296,60 +1640,86 @@ export default async function handler(req: any, res: any) {
         );
         const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
         const isGold = role === 'admin' ? 1 : 0;
-        const hash = bcrypt.hashSync(String(password), 10);
+        const hash = password ? bcrypt.hashSync(String(password), 10) : 'firebase_auth';
+        const fallbackId = deriveDeterministicUserId(cleanEmail);
 
-        const { data: createdUser } = await supabase
-          .from('users')
-          .insert({
-            name: role === 'admin' ? 'Mario Admin' : cleanEmail.split('@')[0],
-            username,
-            username_normalized,
-            email: cleanEmail,
-            whatsapp: cleanEmail,
-            password_hash: hash,
-            role,
-            is_gold: isGold,
-            is_premium: isGold,
-            plan: isGold ? 'gold' : 'beta',
-            avatar_url: '/fotoperfil.png',
-            onboarding_completed: 1,
-            visits_count: 1,
-            last_access: nowIso,
-            created_at: nowIso,
-            updated_at: nowIso,
-          })
-          .select()
-          .single();
-
-        user = createdUser || {
-          id: 75,
+        const newUserObj: any = {
+          name: verifiedFirebase?.name || (role === 'admin' ? 'Mario Admin' : cleanEmail.split('@')[0]),
+          username,
+          username_normalized,
           email: cleanEmail,
           whatsapp: cleanEmail,
-          name: role === 'admin' ? 'Mario Admin' : cleanEmail.split('@')[0],
-          username,
+          password_hash: hash,
           role,
           is_gold: isGold,
+          is_premium: isGold,
+          plan: isGold ? 'gold' : 'beta',
+          avatar_url: verifiedFirebase?.avatarUrl || '/fotoperfil.png',
+          onboarding_completed: 1,
+          visits_count: 1,
+          last_access: nowIso,
+          created_at: nowIso,
+          updated_at: nowIso,
         };
+
+        let createdUser: any = null;
+        try {
+          const resIns = await supabase.from('users').insert(newUserObj).select().single();
+          createdUser = resIns.data;
+        } catch {}
+
+        user = createdUser || {
+          ...newUserObj,
+          id: fallbackId,
+        };
+
+        await upsertFirestoreDocServerless(
+          'users',
+          cleanEmail,
+          {
+            ...user,
+            id: Number(user.id || fallbackId),
+            firebase_uid: verifiedFirebase?.uid || firebase_uid || null,
+          },
+          true
+        );
       } else {
         // Update visits_count and last_access
+        const cleanEmail = String(user.email || user.whatsapp || emailToAuth || '').trim().toLowerCase();
         const nextVisits = Number(user.visits_count || 0) + 1;
-        const nextRole = isPrimaryAdmin(user.email) || user.role === 'admin' ? 'admin' : (user.role || 'user');
+        const nextRole = isPrimaryAdmin(cleanEmail) || user.role === 'admin' ? 'admin' : (user.role || 'user');
         const nextGold = nextRole === 'admin' || user.is_gold === 1 ? 1 : 0;
+        const patchObj = {
+          visits_count: nextVisits,
+          last_access: nowIso,
+          role: nextRole,
+          is_gold: nextGold,
+          updated_at: nowIso,
+        };
         try {
           const { data: updatedUser } = await supabase
             .from('users')
-            .update({
-              visits_count: nextVisits,
-              last_access: nowIso,
-              role: nextRole,
-              is_gold: nextGold,
-              updated_at: nowIso,
-            })
+            .update(patchObj)
             .eq('id', user.id)
             .select()
             .single();
           if (updatedUser) user = updatedUser;
-        } catch {}
+          else user = { ...user, ...patchObj };
+        } catch {
+          user = { ...user, ...patchObj };
+        }
+        if (cleanEmail) {
+          await upsertFirestoreDocServerless(
+            'users',
+            cleanEmail,
+            {
+              ...patchObj,
+              id: Number(user.id || deriveDeterministicUserId(cleanEmail)),
+              email: cleanEmail,
+            },
+            true
+          );
+        }
       }
 
       const token = signPersistentSessionToken(user);
@@ -1400,20 +1770,20 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      // Check if account already exists in public.users
+      // Check if account already exists in public.users or Firestore
       const existingUser = await findUserByEmailOrIdentifier(cleanEmail);
       const hash = bcrypt.hashSync(String(password), 10);
       const nowIso = new Date().toISOString();
       const resolvedAvatar = await resolveAvatarUrlServerless(avatar_url, 'avatars');
       const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
       const isGold = role === 'admin' ? 1 : 0;
+      const verifiedFirebase = firebase_id_token
+        ? await verifyFirebaseIdTokenServerless(firebase_id_token)
+        : null;
 
       if (existingUser) {
-        const verifiedFirebase = firebase_id_token
-          ? await verifyFirebaseIdTokenServerless(firebase_id_token)
-          : null;
         const canUpgradeOAuthAccount =
-          verifiedFirebase?.email === cleanEmail &&
+          (verifiedFirebase?.email === cleanEmail || Boolean(verifiedFirebase?.uid)) &&
           (existingUser.password_hash === 'google_oauth' ||
             existingUser.password_hash === 'supabase_auth' ||
             existingUser.password_hash === 'profile_sync' ||
@@ -1429,33 +1799,50 @@ export default async function handler(req: any, res: any) {
         // Upgrade verified OAuth / synced account with the new password and profile info
         const preservedRole = role === 'admin' || existingUser.role === 'admin' ? 'admin' : 'user';
         const preservedGold = preservedRole === 'admin' || existingUser.is_gold === 1 ? 1 : 0;
-        const { data: updatedUser, error: updErr } = await supabase
-          .from('users')
-          .update({
-            name: cleanName || existingUser.name,
-            password_hash: hash,
-            avatar_url:
-              resolvedAvatar !== '/fotoperfil.png'
-                ? resolvedAvatar
-                : existingUser.avatar_url || '/fotoperfil.png',
-            role: preservedRole,
-            is_gold: preservedGold,
-            onboarding_completed: 0,
-            onboarding_step: 1,
-            last_access: nowIso,
-            updated_at: nowIso,
-          })
-          .eq('id', existingUser.id)
-          .select()
-          .single();
+        const upgradePatch = {
+          name: cleanName || existingUser.name,
+          password_hash: hash,
+          avatar_url:
+            resolvedAvatar !== '/fotoperfil.png'
+              ? resolvedAvatar
+              : existingUser.avatar_url || '/fotoperfil.png',
+          role: preservedRole,
+          is_gold: preservedGold,
+          onboarding_completed: 0,
+          onboarding_step: 1,
+          last_access: nowIso,
+          updated_at: nowIso,
+        };
 
-        if (updErr) {
-          console.error('[Monvian API Register Update Error]', updErr);
-          return res.status(500).json({
-            success: false,
-            error: sanitizeBackendAuthError(updErr, 'Não foi possível concluir seu cadastro. Tente novamente.'),
-          });
-        }
+        let updatedUser: any = {
+          ...existingUser,
+          ...upgradePatch,
+          id: Number(existingUser.id || deriveDeterministicUserId(cleanEmail)),
+        };
+
+        try {
+          const { data: supaUpdated } = await supabase
+            .from('users')
+            .update(upgradePatch)
+            .eq('id', existingUser.id)
+            .select()
+            .single();
+          if (supaUpdated) updatedUser = supaUpdated;
+        } catch {}
+
+        await upsertFirestoreDocServerless(
+          'users',
+          cleanEmail,
+          {
+            ...updatedUser,
+            id: Number(updatedUser.id || deriveDeterministicUserId(cleanEmail)),
+            email: cleanEmail,
+            welcome_card_seen: 0,
+            globe_intro_seen: 0,
+            map_tutorial_status: 'pending',
+          },
+          true
+        );
 
         const token = signPersistentSessionToken(updatedUser);
         if (updatedUser?.id && Number(updatedUser.id) < 2147483647) {
@@ -1520,13 +1907,16 @@ export default async function handler(req: any, res: any) {
       let inserted: any = null;
       let insErr: any = null;
 
-      const firstAttempt = await supabase.from('users').insert(payload).select().single();
-      inserted = firstAttempt.data;
-      insErr = firstAttempt.error;
+      try {
+        const firstAttempt = await supabase.from('users').insert(payload).select().single();
+        inserted = firstAttempt.data;
+        insErr = firstAttempt.error;
+      } catch (e: any) {
+        insErr = e;
+      }
 
       // Retry with randomized username/whatsapp suffix (and without auth_id) if any constraint occurred
       if (insErr) {
-        console.error('[Monvian API Register First Insert Error]', insErr);
         const msg = String(insErr.message || '').toLowerCase();
         if (msg.includes('users_email_key') || (msg.includes('duplicate key') && msg.includes('email'))) {
           return res.status(409).json({
@@ -1534,26 +1924,46 @@ export default async function handler(req: any, res: any) {
             error: 'Este e-mail já possui uma conta.',
           });
         }
-        const retrySuffix = Math.floor(1000 + Math.random() * 9000);
-        const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
-        const { auth_id: _droppedAuthId, ...retryBase } = payload;
-        const retryPayload = {
-          ...retryBase,
-          username: retryUsername,
-          username_normalized: retryUsername.toLowerCase(),
-          whatsapp: cleanEmail,
-        };
-        const retryAttempt = await supabase.from('users').insert(retryPayload).select().single();
-        inserted = retryAttempt.data;
-        insErr = retryAttempt.error;
+        if (!msg.includes('exceed_cached_egress_quota') && !msg.includes('restricted due to')) {
+          try {
+            const retrySuffix = Math.floor(1000 + Math.random() * 9000);
+            const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
+            const { auth_id: _droppedAuthId, ...retryBase } = payload;
+            const retryPayload = {
+              ...retryBase,
+              username: retryUsername,
+              username_normalized: retryUsername.toLowerCase(),
+              whatsapp: cleanEmail,
+            };
+            const retryAttempt = await supabase.from('users').insert(retryPayload).select().single();
+            inserted = retryAttempt.data;
+            insErr = retryAttempt.error;
+          } catch {}
+        }
       }
 
-      if (insErr || !inserted) {
-        console.error('[Monvian API Register Final Insert Error]', insErr);
-        return res.status(500).json({
-          success: false,
-          error: sanitizeBackendAuthError(insErr, 'Não foi possível concluir o cadastro no momento.'),
-        });
+      const fallbackId = deriveDeterministicUserId(cleanEmail);
+      const firestoreUserRecord = {
+        ...payload,
+        id: Number(inserted?.id || fallbackId),
+        firebase_uid: verifiedFirebase?.uid || null,
+        welcome_card_seen: 0,
+        globe_intro_seen: 0,
+        map_tutorial_status: 'pending',
+      };
+
+      const fsSaved = await upsertFirestoreDocServerless('users', cleanEmail, firestoreUserRecord, true);
+
+      if (!inserted) {
+        if (fsSaved) {
+          inserted = firestoreUserRecord;
+        } else {
+          console.error('[Monvian API Register Final Insert Error]', insErr);
+          return res.status(500).json({
+            success: false,
+            error: sanitizeBackendAuthError(insErr, 'Não foi possível concluir o cadastro no momento.'),
+          });
+        }
       }
 
       const token = signPersistentSessionToken(inserted);
@@ -1600,27 +2010,30 @@ export default async function handler(req: any, res: any) {
       }
 
       if (method === 'POST') {
-        const { name, avatar_url, idToken } = body || {};
+        const { email: bodyEmail, name, avatar_url, google_uid, idToken } = body || {};
 
-        if (!idToken || typeof idToken !== 'string') {
+        let verified: { uid: string; email: string; name?: string; avatarUrl?: string } | null = null;
+        if (idToken && typeof idToken === 'string') {
+          verified = await verifyFirebaseIdTokenServerless(idToken);
+        }
+
+        const candidateBodyEmail = String(bodyEmail || '').trim().toLowerCase();
+        const resolvedEmail = String(
+          verified?.email || (verified?.uid && candidateBodyEmail.includes('@') ? candidateBodyEmail : '')
+        )
+          .trim()
+          .toLowerCase();
+
+        if (!resolvedEmail || !resolvedEmail.includes('@')) {
           return res.status(401).json({
             success: false,
             error: 'Não foi possível validar sua sessão do Google. Tente novamente.',
           });
         }
 
-        // Verify Firebase ID Token via Identity Toolkit (authoritative email & identity)
-        const verified = await verifyFirebaseIdTokenServerless(idToken);
-        if (!verified?.email || !verified.email.includes('@')) {
-          return res.status(401).json({
-            success: false,
-            error: 'Não foi possível entrar com Google. Tente novamente.',
-          });
-        }
-
-        const resolvedEmail = verified.email;
-        const resolvedName = verified.name || String(name || '').trim();
-        const resolvedAvatar = verified.avatarUrl || String(avatar_url || '').trim();
+        const resolvedName = verified?.name || String(name || '').trim() || resolvedEmail.split('@')[0];
+        const resolvedAvatar = verified?.avatarUrl || String(avatar_url || '').trim() || '/fotoperfil.png';
+        const resolvedUid = verified?.uid || String(google_uid || '').trim() || null;
 
         const nowIso = new Date().toISOString();
         let user = await findUserByEmailOrIdentifier(resolvedEmail);
@@ -1645,29 +2058,47 @@ export default async function handler(req: any, res: any) {
               ? resolvedAvatar
               : user.avatar_url || '/fotoperfil.png';
 
-          // IMPORTANT: Do not write Firebase UID into public.users.auth_id (UUID FK -> auth.users.id)
-          const { data: updatedRow, error: updErr } = await supabase
-            .from('users')
-            .update({
-              name: updatedName,
-              email: resolvedEmail,
-              avatar_url: updatedAvatar,
-              role,
-              is_gold: isGold,
-              is_premium: isGold,
-              plan: isGold ? 'gold' : (user.plan || 'beta'),
-              visits_count: Number(user.visits_count || 0) + 1,
-              last_access: nowIso,
-              updated_at: nowIso,
-            })
-            .eq('id', user.id)
-            .select()
-            .single();
+          const updatePayload = {
+            name: updatedName,
+            email: resolvedEmail,
+            avatar_url: updatedAvatar,
+            role,
+            is_gold: isGold,
+            is_premium: isGold,
+            plan: isGold ? 'gold' : (user.plan || 'beta'),
+            visits_count: Number(user.visits_count || 0) + 1,
+            last_access: nowIso,
+            updated_at: nowIso,
+          };
 
-          if (updErr) {
-            console.error('[Monvian API Google Update Error]', updErr);
+          // IMPORTANT: Do not write Firebase UID into public.users.auth_id (UUID FK -> auth.users.id)
+          try {
+            const { data: updatedRow } = await supabase
+              .from('users')
+              .update(updatePayload)
+              .eq('id', user.id)
+              .select()
+              .single();
+            if (updatedRow) {
+              user = updatedRow;
+            } else {
+              user = { ...user, ...updatePayload };
+            }
+          } catch {
+            user = { ...user, ...updatePayload };
           }
-          if (updatedRow) user = updatedRow;
+
+          await upsertFirestoreDocServerless(
+            'users',
+            resolvedEmail,
+            {
+              ...user,
+              ...updatePayload,
+              id: Number(user.id || deriveDeterministicUserId(resolvedEmail)),
+              ...(resolvedUid ? { firebase_uid: resolvedUid } : {}),
+            },
+            true
+          );
         } else {
           isNewUser = true;
           const role = isPrimaryAdmin(resolvedEmail) ? 'admin' : 'user';
@@ -1698,37 +2129,53 @@ export default async function handler(req: any, res: any) {
             updated_at: nowIso,
           };
 
-          const { data: createdRow, error: createErr } = await supabase
-            .from('users')
-            .insert(insertPayload)
-            .select()
-            .single();
-
-          if (createErr) {
-            console.error('[Monvian API Google First Insert Error]', createErr);
-            const retrySuffix = Math.floor(1000 + Math.random() * 9000);
-            const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
-            const { data: retryRow, error: retryErr } = await supabase
+          let createdRow: any = null;
+          let createErr: any = null;
+          try {
+            const firstIns = await supabase
               .from('users')
-              .insert({
-                ...insertPayload,
-                username: retryUsername,
-                username_normalized: retryUsername.toLowerCase(),
-              })
+              .insert(insertPayload)
               .select()
               .single();
-
-            if (retryErr || !retryRow) {
-              console.error('[Monvian API Google Final Insert Error]', retryErr || createErr);
-              return res.status(500).json({
-                success: false,
-                error: sanitizeBackendAuthError(retryErr || createErr, 'Não foi possível entrar com Google. Tente novamente.'),
-              });
-            }
-            user = retryRow;
-          } else {
-            user = createdRow;
+            createdRow = firstIns.data;
+            createErr = firstIns.error;
+          } catch (e: any) {
+            createErr = e;
           }
+
+          if (createErr && !createdRow) {
+            const errMsg = String(createErr?.message || '').toLowerCase();
+            if (!errMsg.includes('exceed_cached_egress_quota') && !errMsg.includes('restricted due to')) {
+              try {
+                const retrySuffix = Math.floor(1000 + Math.random() * 9000);
+                const retryUsername = `${username.slice(0, 18)}${retrySuffix}`;
+                const retryIns = await supabase
+                  .from('users')
+                  .insert({
+                    ...insertPayload,
+                    username: retryUsername,
+                    username_normalized: retryUsername.toLowerCase(),
+                  })
+                  .select()
+                  .single();
+                createdRow = retryIns.data;
+              } catch {}
+            }
+          }
+
+          const fallbackId = deriveDeterministicUserId(resolvedEmail);
+          const firestoreUserPayload = {
+            ...insertPayload,
+            id: Number(createdRow?.id || fallbackId),
+            ...(resolvedUid ? { firebase_uid: resolvedUid } : {}),
+            welcome_card_seen: 0,
+            globe_intro_seen: 0,
+            map_tutorial_status: 'pending',
+          };
+
+          await upsertFirestoreDocServerless('users', resolvedEmail, firestoreUserPayload, true);
+
+          user = createdRow || firestoreUserPayload;
         }
 
         const token = signPersistentSessionToken(user);
@@ -1772,16 +2219,29 @@ export default async function handler(req: any, res: any) {
         return res.status(401).json({ success: false, error: 'Sessão de redefinição inválida ou expirada.' });
       }
       const existing = await findUserByEmailOrIdentifier(verified.email);
+      const hash = bcrypt.hashSync(String(new_password), 10);
+      const nowIso = new Date().toISOString();
       if (existing) {
-        const hash = bcrypt.hashSync(String(new_password), 10);
-        await supabase
-          .from('users')
-          .update({
-            password_hash: hash,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id);
+        try {
+          await supabase
+            .from('users')
+            .update({
+              password_hash: hash,
+              updated_at: nowIso,
+            })
+            .eq('id', existing.id);
+        } catch {}
       }
+      await upsertFirestoreDocServerless(
+        'users',
+        verified.email,
+        {
+          email: verified.email,
+          password_hash: hash,
+          updated_at: nowIso,
+        },
+        true
+      );
       return res.status(200).json({ success: true });
     }
 
@@ -1807,32 +2267,37 @@ export default async function handler(req: any, res: any) {
           authData.user.user_metadata?.name ||
           cleanEmail.split('@')[0];
         const { username, username_normalized } = await generateUniqueUsernameServerless(displayName);
+        const newPayload = {
+          auth_id: authData.user.id,
+          name: displayName,
+          username,
+          username_normalized,
+          email: cleanEmail,
+          whatsapp: cleanEmail,
+          password_hash: 'supabase_auth',
+          avatar_url: authData.user.user_metadata?.avatar_url || '/fotoperfil.png',
+          role,
+          is_gold: isGold,
+          is_premium: isGold,
+          plan: isGold ? 'gold' : 'beta',
+          onboarding_completed: 1,
+          visits_count: 1,
+          last_access: nowIso,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
 
-        const { data: created } = await supabase
-          .from('users')
-          .insert({
-            auth_id: authData.user.id,
-            name: displayName,
-            username,
-            username_normalized,
-            email: cleanEmail,
-            whatsapp: cleanEmail,
-            password_hash: 'supabase_auth',
-            avatar_url: authData.user.user_metadata?.avatar_url || '/fotoperfil.png',
-            role,
-            is_gold: isGold,
-            is_premium: isGold,
-            plan: isGold ? 'gold' : 'beta',
-            onboarding_completed: 1,
-            visits_count: 1,
-            last_access: nowIso,
-            created_at: nowIso,
-            updated_at: nowIso,
-          })
-          .select()
-          .single();
+        let created: any = null;
+        try {
+          const ins = await supabase.from('users').insert(newPayload).select().single();
+          created = ins.data;
+        } catch {}
 
-        user = created;
+        user = created || {
+          ...newPayload,
+          id: deriveDeterministicUserId(cleanEmail),
+        };
+        await upsertFirestoreDocServerless('users', cleanEmail, user, true);
       }
 
       const token = signPersistentSessionToken(user);
@@ -2053,9 +2518,10 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ success: false, error: 'E-mail ou sessão necessária' });
       }
 
-      const existing = await findUserByEmailOrIdentifier(targetEmail || currentUser?.email || '');
+      const cleanEmail = targetEmail || String(currentUser?.email || '').trim().toLowerCase();
+      const existing = await findUserByEmailOrIdentifier(cleanEmail);
       const role =
-        isPrimaryAdmin(targetEmail) || currentUser?.role === 'admin' || existing?.role === 'admin'
+        isPrimaryAdmin(cleanEmail) || currentUser?.role === 'admin' || existing?.role === 'admin'
           ? 'admin'
           : 'user';
       const isGold =
@@ -2066,7 +2532,7 @@ export default async function handler(req: any, res: any) {
         : existing?.avatar_url || currentUser?.avatar_url || '/fotoperfil.png';
 
       const cleanUsernameInput = String(
-        body?.username || existing?.username || body?.name || targetEmail.split('@')[0] || 'explorador'
+        body?.username || existing?.username || body?.name || cleanEmail.split('@')[0] || 'explorador'
       )
         .trim()
         .replace(/^@+/, '');
@@ -2076,49 +2542,58 @@ export default async function handler(req: any, res: any) {
         existing?.id || currentUser?.id
       );
 
+      const nowIso = new Date().toISOString();
       const updateData: any = {
         name: body?.name || existing?.name || currentUser?.name || username,
         username,
         username_normalized,
         bio: body?.bio !== undefined ? body.bio : (existing?.bio || ''),
         avatar_url: resolvedAvatar,
-        email: targetEmail || existing?.email || currentUser?.email,
-        whatsapp: body?.whatsapp || targetEmail || existing?.whatsapp || currentUser?.email,
+        email: cleanEmail,
+        whatsapp: body?.whatsapp || cleanEmail || existing?.whatsapp,
         role,
         is_gold: isGold,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
+      };
+
+      let finalUserRow: any = {
+        ...(existing || currentUser || {}),
+        ...updateData,
+        id: Number(existing?.id || currentUser?.id || deriveDeterministicUserId(cleanEmail)),
       };
 
       if (existing?.id) {
-        const { data, error } = await supabase
-          .from('users')
-          .update(updateData)
-          .eq('id', existing.id)
-          .select()
-          .single();
-
-        if (error) {
-          return res.status(500).json({ success: false, error: error.message });
-        }
-        return res.status(200).json({ success: true, user: formatSafeUser(data) });
+        try {
+          const { data } = await supabase
+            .from('users')
+            .update(updateData)
+            .eq('id', existing.id)
+            .select()
+            .single();
+          if (data) finalUserRow = data;
+        } catch {}
       } else {
-        const { data, error } = await supabase
-          .from('users')
-          .insert({
-            ...updateData,
-            password_hash: 'profile_sync',
-            onboarding_completed: 1,
-            visits_count: 1,
-            created_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (error) {
-          return res.status(500).json({ success: false, error: error.message });
-        }
-        return res.status(200).json({ success: true, user: formatSafeUser(data) });
+        try {
+          const { data } = await supabase
+            .from('users')
+            .insert({
+              ...updateData,
+              password_hash: 'profile_sync',
+              onboarding_completed: 1,
+              visits_count: 1,
+              created_at: nowIso,
+            })
+            .select()
+            .single();
+          if (data) finalUserRow = data;
+        } catch {}
       }
+
+      if (cleanEmail) {
+        await upsertFirestoreDocServerless('users', cleanEmail, finalUserRow, true);
+      }
+
+      return res.status(200).json({ success: true, user: formatSafeUser(finalUserRow) });
     }
 
     if (
@@ -2150,6 +2625,13 @@ export default async function handler(req: any, res: any) {
         }
       } catch {}
 
+      if (!existingPrefs || Object.keys(existingPrefs).length === 0) {
+        try {
+          const fsPref = await getFirestoreDocServerless('user_onboarding', targetEmail);
+          if (fsPref) existingPrefs = fsPref;
+        } catch {}
+      }
+
       const mergedPrefs = {
         ...existingPrefs,
         ...(body || {}),
@@ -2159,14 +2641,36 @@ export default async function handler(req: any, res: any) {
         updated_at: nowIso,
       };
 
-      try {
-        await supabase.from('system_settings').upsert(
-          { key: `onboarding_${targetEmail}`, value: JSON.stringify(mergedPrefs), updated_at: nowIso },
-          { onConflict: 'key' }
-        );
-      } catch {}
+      await Promise.allSettled([
+        (async () => {
+          try {
+            await supabase.from('system_settings').upsert(
+              { key: `onboarding_${targetEmail}`, value: JSON.stringify(mergedPrefs), updated_at: nowIso },
+              { onConflict: 'key' }
+            );
+          } catch {}
+        })(),
+        upsertFirestoreDocServerless('user_onboarding', targetEmail, mergedPrefs, true),
+        upsertFirestoreDocServerless(
+          'users',
+          targetEmail,
+          {
+            email: targetEmail,
+            onboarding_step: nextStep,
+            onboarding_completed: markComplete ? 1 : 0,
+            updated_at: nowIso,
+          },
+          true
+        ),
+      ]);
 
-      let updatedUser = currentUser;
+      let updatedUser = currentUser
+        ? {
+            ...currentUser,
+            onboarding_step: nextStep,
+            onboarding_completed: markComplete ? 1 : 0,
+          }
+        : null;
       if (markComplete) {
         const existingFlags = await readPersistedOnboardingFlags(targetEmail);
         if (!existingFlags) {

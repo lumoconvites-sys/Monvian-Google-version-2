@@ -33,35 +33,13 @@ import firebaseAppletConfig from '../../firebase-applet-config.json';
  * from causing Invalid API key or cross-project errors).
  */
 function buildValidatedFirebaseConfig() {
-  const envProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
-  const envApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
-  const envAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
-  const envAuthDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
-  const envStorageBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
-  const envSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
-
-  const hasValidEnvMatch =
-    Boolean(envProjectId && envProjectId === firebaseAppletConfig.projectId) &&
-    Boolean(envApiKey && envApiKey.startsWith('AIza') && !envApiKey.includes('Mock'));
-
-  if (!hasValidEnvMatch) {
-    return {
-      apiKey: firebaseAppletConfig.apiKey,
-      authDomain: firebaseAppletConfig.authDomain,
-      projectId: firebaseAppletConfig.projectId,
-      storageBucket: firebaseAppletConfig.storageBucket,
-      messagingSenderId: firebaseAppletConfig.messagingSenderId,
-      appId: firebaseAppletConfig.appId,
-    };
-  }
-
   return {
-    apiKey: envApiKey,
-    authDomain: envAuthDomain || firebaseAppletConfig.authDomain,
+    apiKey: firebaseAppletConfig.apiKey,
+    authDomain: firebaseAppletConfig.authDomain,
     projectId: firebaseAppletConfig.projectId,
-    storageBucket: envStorageBucket || firebaseAppletConfig.storageBucket,
-    messagingSenderId: envSenderId || firebaseAppletConfig.messagingSenderId,
-    appId: envAppId && envAppId.startsWith('1:') ? envAppId : firebaseAppletConfig.appId,
+    storageBucket: firebaseAppletConfig.storageBucket,
+    messagingSenderId: firebaseAppletConfig.messagingSenderId,
+    appId: firebaseAppletConfig.appId,
   };
 }
 
@@ -293,8 +271,16 @@ export const checkGoogleRedirectResult = async (): Promise<{
   accessToken?: string | null;
   idToken?: string;
 } | null> => {
+  const hadPendingRedirect = (() => {
+    try {
+      return typeof window !== 'undefined' && sessionStorage.getItem('monvian_google_redirect_pending') === '1';
+    } catch {
+      return false;
+    }
+  })();
+
   const result = await getRedirectResult(auth);
-  if (result?.user?.email) {
+  if (result?.user) {
     const credential = GoogleAuthProvider.credentialFromResult(result);
     const accessToken = credential?.accessToken || null;
     let idToken = '';
@@ -308,6 +294,22 @@ export const checkGoogleRedirectResult = async (): Promise<{
       idToken,
     };
   }
+
+  if (hadPendingRedirect) {
+    const hydratedUser = auth.currentUser || (await waitForFirebaseAuthUser(1800));
+    if (hydratedUser) {
+      let idToken = '';
+      try {
+        idToken = await hydratedUser.getIdToken();
+      } catch {}
+      return {
+        user: hydratedUser,
+        accessToken: null,
+        idToken,
+      };
+    }
+  }
+
   return null;
 };
 
@@ -340,6 +342,22 @@ export const googleSignIn = async (): Promise<{
     };
   } catch (error: any) {
     const code = String(error?.code || '');
+
+    // Check if iOS Safari completed auth right as the popup window closed
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    if (auth.currentUser) {
+      let idToken = '';
+      try {
+        idToken = await auth.currentUser.getIdToken();
+      } catch {}
+      if (idToken) {
+        return {
+          user: auth.currentUser,
+          accessToken: null,
+          idToken,
+        };
+      }
+    }
 
     // User closed Google chooser intentionally
     if (
@@ -379,3 +397,4 @@ export const googleSignIn = async (): Promise<{
     throw error;
   }
 };
+

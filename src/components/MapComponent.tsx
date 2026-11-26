@@ -100,37 +100,13 @@ const getMapboxToken = (): string => {
   }
 };
 
-const getCleanSpaceSky = (theme: 'dark' | 'light'): maplibregl.SkySpecification => ({
-  'sky-color': [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    6.5,
-    '#000000',
-    9.2,
-    theme === 'dark' ? '#0b0f17' : '#dce8f5',
-  ],
-  'horizon-color': [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    6.5,
-    '#000000',
-    9.2,
-    theme === 'dark' ? '#111827' : '#eef4fa',
-  ],
-  'fog-color': [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    6.5,
-    '#000000',
-    9.2,
-    theme === 'dark' ? '#0b0f17' : '#edf2f7',
-  ],
-  'sky-horizon-blend': ['interpolate', ['linear'], ['zoom'], 6.5, 0, 9.2, 0.55],
+const getCleanSpaceSky = (_theme?: 'dark' | 'light'): maplibregl.SkySpecification => ({
+  'sky-color': 'transparent',
+  'horizon-color': 'transparent',
+  'fog-color': 'transparent',
+  'sky-horizon-blend': 0,
   'horizon-fog-blend': 0,
-  'fog-ground-blend': 0,
+  'fog-ground-blend': 1,
   'atmosphere-blend': 0,
 });
 
@@ -151,7 +127,7 @@ const getVectorMapStyle = (
   const mapProjection: maplibregl.ProjectionSpecification = {
     type: useGlobeProjection ? 'globe' : 'mercator',
   };
-  const optionalSky = useGlobeProjection ? { sky: getCleanSpaceSky(theme) } : {};
+  const optionalSky = { sky: getCleanSpaceSky(theme) };
 
   // 1. Satellite Mode
   if (mode === 'satelite') {
@@ -930,7 +906,7 @@ export const MapComponent = memo(
           map.easeTo({
             center: targetCoords,
             zoom: targetZoom,
-            pitch: is3DModeRef.current ? 60 : 0,
+            pitch: is3DModeRef.current ? 55 : 0,
             bearing: is3DModeRef.current ? -20 : 0,
             duration: animDuration,
             easing: smoothCameraEase,
@@ -1181,7 +1157,7 @@ export const MapComponent = memo(
           map.easeTo({
             center: targetCenter,
             zoom: targetZoom,
-            pitch: is3DModeRef.current ? 60 : 0,
+            pitch: is3DModeRef.current ? 55 : 0,
             bearing: targetBearing,
             offset: [0, 0],
             duration: animDuration,
@@ -1192,7 +1168,7 @@ export const MapComponent = memo(
           map.jumpTo({
             center: targetCenter,
             zoom: targetZoom,
-            pitch: is3DModeRef.current ? 60 : 0,
+            pitch: is3DModeRef.current ? 55 : 0,
             bearing: targetBearing,
           });
         }
@@ -1313,7 +1289,7 @@ export const MapComponent = memo(
           } catch {}
           try {
             map.setProjection({ type: 'mercator' });
-            map.setSky(undefined);
+            map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
 
           const handlers = [
@@ -1332,7 +1308,7 @@ export const MapComponent = memo(
           });
 
           const camposTarget = getCamposOverviewCameraRef.current(map);
-          const finalPitch = is3DModeRef.current ? 60 : 0;
+          const finalPitch = is3DModeRef.current ? 55 : 0;
           const finalBearing = is3DModeRef.current ? -20 : 0;
           try {
             map.jumpTo({
@@ -1473,7 +1449,7 @@ export const MapComponent = memo(
             : startOrbital
               ? 0
               : is3DModeRef.current
-                ? 60
+                ? 55
                 : 0,
           bearing: resumedCam
             ? resumedCam.bearing
@@ -1482,7 +1458,7 @@ export const MapComponent = memo(
               : is3DModeRef.current
                 ? -20
                 : 0,
-          maxPitch: 75,
+          maxPitch: 55,
           pitchWithRotate: true,
           touchZoomRotate: true,
           touchPitch: false,
@@ -1651,7 +1627,7 @@ export const MapComponent = memo(
               map.setSky(getCleanSpaceSky(themeRef.current));
             } else {
               map.setProjection({ type: 'mercator' });
-              map.setSky(undefined);
+              map.setSky(getCleanSpaceSky(themeRef.current));
             }
           } catch {}
           syncSpotMarkers();
@@ -1683,7 +1659,7 @@ export const MapComponent = memo(
             map.easeTo({
               center: [selectedSpotRef.current.lng, selectedSpotRef.current.lat],
               zoom: 15.5,
-              pitch: is3DModeRef.current ? 60 : 35,
+              pitch: is3DModeRef.current ? 55 : 35,
               bearing: is3DModeRef.current ? -20 : 0,
               offset: [0, verticalOffset],
               duration: 500,
@@ -1705,7 +1681,7 @@ export const MapComponent = memo(
               map.setSky(getCleanSpaceSky(themeRef.current));
             } else {
               map.setProjection({ type: 'mercator' });
-              map.setSky(undefined);
+              map.setSky(getCleanSpaceSky(themeRef.current));
             }
           } catch {}
           syncSpotMarkersRef.current?.();
@@ -2078,7 +2054,7 @@ export const MapComponent = memo(
             mapRef.current.setSky(getCleanSpaceSky(themeRef.current));
           } else {
             mapRef.current.setProjection({ type: 'mercator' });
-            mapRef.current.setSky(undefined);
+            mapRef.current.setSky(getCleanSpaceSky(themeRef.current));
           }
         } catch {}
       }
@@ -2297,7 +2273,7 @@ export const MapComponent = memo(
               window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
           );
           const orbitalZoom = getOrbitalEarthZoom();
-          const finalPitch = is3DModeRef.current ? 60 : 0;
+          const finalPitch = is3DModeRef.current ? 55 : 0;
           const finalBearing = is3DModeRef.current ? -20 : 0;
           const startLng = CAMPOS_OVERVIEW_CENTER[0];
           const startLat = -12;
@@ -2361,7 +2337,7 @@ export const MapComponent = memo(
           // Transition from 3D Earth sphere to flat Mercator world upon arrival in Campos do Jordão
           try {
             map.setProjection({ type: 'mercator' });
-            map.setSky(undefined);
+            map.setSky(getCleanSpaceSky(themeRef.current));
           } catch {}
 
           isGlobeSpinActiveRef.current = false;
@@ -2526,7 +2502,7 @@ export const MapComponent = memo(
       }, animDuration + 60);
 
       map.easeTo({
-        pitch: is3DMode ? 60 : 0,
+        pitch: is3DMode ? 55 : 0,
         bearing: is3DMode ? map.getBearing() : 0,
         duration: animDuration,
         easing: smoothCameraEase,

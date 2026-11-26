@@ -90,12 +90,29 @@ async function verifyFirebaseIdTokenServer(
     if (!resp.ok) return null;
     const json: any = await resp.json();
     const fbUser = Array.isArray(json?.users) ? json.users[0] : null;
-    if (!fbUser?.email) return null;
+    if (!fbUser) return null;
+    const providerInfo = Array.isArray(fbUser.providerUserInfo) ? fbUser.providerUserInfo : [];
+    const providerEmail =
+      providerInfo.find((p: any) => typeof p?.email === 'string' && p.email.includes('@'))?.email || '';
+    const providerName =
+      providerInfo.find((p: any) => typeof p?.displayName === 'string' && p.displayName.trim())?.displayName || '';
+    const providerPhoto =
+      providerInfo.find((p: any) => typeof p?.photoUrl === 'string' && p.photoUrl.trim())?.photoUrl || '';
+    const resolvedEmail = String(fbUser.email || providerEmail || '').trim().toLowerCase();
+    if (!resolvedEmail && !fbUser.localId) return null;
     return {
       uid: String(fbUser.localId || ''),
-      email: String(fbUser.email).trim().toLowerCase(),
-      name: fbUser.displayName ? String(fbUser.displayName).trim() : undefined,
-      avatarUrl: fbUser.photoUrl ? String(fbUser.photoUrl).trim() : undefined,
+      email: resolvedEmail,
+      name: fbUser.displayName
+        ? String(fbUser.displayName).trim()
+        : providerName
+          ? String(providerName).trim()
+          : undefined,
+      avatarUrl: fbUser.photoUrl
+        ? String(fbUser.photoUrl).trim()
+        : providerPhoto
+          ? String(providerPhoto).trim()
+          : undefined,
     };
   } catch {
     return null;
@@ -1466,7 +1483,7 @@ async function startServer() {
       }
 
       let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(whatsapp) = ?').get(cleanEmail, cleanEmail) as any;
-      const isNew = false;
+      let isNew = false;
 
       if (!user) {
         const remoteUser = await getUserFromSupabase(cleanEmail);
@@ -1485,7 +1502,7 @@ async function startServer() {
             remoteUser.username || cleanEmail.split('@')[0],
             cleanEmail,
             cleanEmail,
-            remoteUser.password_hash || bcrypt.hashSync(crypto.randomUUID(), 10),
+            remoteUser.password_hash || 'google_oauth',
             resolvedAvatar || remoteUser.avatar_url || '/fotoperfil.png',
             role,
             resolvedUid || remoteUser.auth_id || null,
@@ -1497,17 +1514,35 @@ async function startServer() {
           );
           user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         } else {
-          return res.status(404).json({
-            success: false,
-            registered: false,
-            requiresRegistration: true,
-            code: 'ACCOUNT_NOT_REGISTERED',
-            email: cleanEmail,
-            name: resolvedName,
-            avatar_url: resolvedAvatar,
-            google_uid: resolvedUid || null,
-            error: 'Esta conta ainda não está cadastrada. Inicie seu cadastro para continuar.',
-          });
+          isNew = true;
+          const role = isPrimaryAdmin(cleanEmail) ? 'admin' : 'user';
+          const baseUsername =
+            (resolvedName || cleanEmail.split('@')[0])
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-zA-Z0-9_]/g, '')
+              .toLowerCase()
+              .slice(0, 22) || 'explorador';
+          let cleanUsername = baseUsername;
+          let suffix = 1;
+          while (db.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(cleanUsername)) {
+            suffix += 1;
+            cleanUsername = `${baseUsername}${suffix}`;
+          }
+          const insert = db.prepare(`
+            INSERT INTO users (name, username, email, whatsapp, password_hash, avatar_url, role, auth_id, welcome_card_seen, globe_intro_seen, onboarding_completed, onboarding_step, map_tutorial_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 1, 'pending')
+          `).run(
+            resolvedName || cleanEmail.split('@')[0],
+            cleanUsername,
+            cleanEmail,
+            cleanEmail,
+            'google_oauth',
+            resolvedAvatar || '/fotoperfil.png',
+            role,
+            resolvedUid || null
+          );
+          user = db.prepare('SELECT * FROM users WHERE id = ?').get(insert.lastInsertRowid);
         }
       }
 
