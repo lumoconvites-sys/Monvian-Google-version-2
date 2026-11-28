@@ -2,6 +2,16 @@ import Stripe from 'stripe';
 import type Database from 'better-sqlite3';
 import type express from 'express';
 import { supabase } from '../services/supabaseClient.ts';
+import {
+  createStripeClientSafe,
+  isLiveStripeKey,
+  isValidStripeSecretKey,
+  isValidStripeWebhookSecret,
+  resolveStripeSecretKeyFromEnv,
+  resolveStripeWebhookSecretFromEnv,
+  sanitizeStripeCredential,
+  sanitizeStripeErrorMessage,
+} from './stripeEnv.ts';
 
 export type DashboardPeriodKey =
   | '7d'
@@ -110,15 +120,16 @@ export function setupStripeDashboardDatabase(db: Database.Database): void {
 }
 
 export async function resolveStripeSecretKeyAsync(db: Database.Database): Promise<string> {
-  const envKey = (process.env.STRIPE_SECRET_KEY || '').trim();
-  if (envKey) return envKey;
+  const envResolved = resolveStripeSecretKeyFromEnv();
+  if (envResolved.key) return envResolved.key;
 
   try {
     const row = db
       .prepare("SELECT value FROM system_settings WHERE key = 'stripe_secret_key'")
       .get() as { value?: string } | undefined;
-    if (row?.value && row.value.trim()) {
-      return row.value.trim();
+    const localKey = sanitizeStripeCredential(row?.value);
+    if (isValidStripeSecretKey(localKey)) {
+      return localKey;
     }
   } catch {}
 
@@ -128,8 +139,8 @@ export async function resolveStripeSecretKeyAsync(db: Database.Database): Promis
         supabase.from('system_settings').select('value').eq('key', 'stripe_secret_key').maybeSingle(),
         new Promise<any>((resolve) => setTimeout(() => resolve({ data: null }), 2500)),
       ]);
-      const remoteKey = typeof data?.value === 'string' ? data.value.trim() : '';
-      if (remoteKey) {
+      const remoteKey = sanitizeStripeCredential(typeof data?.value === 'string' ? data.value : '');
+      if (isValidStripeSecretKey(remoteKey)) {
         try {
           db.prepare(
             `INSERT INTO system_settings (key, value, updated_at) VALUES ('stripe_secret_key', ?, CURRENT_TIMESTAMP)
@@ -145,15 +156,16 @@ export async function resolveStripeSecretKeyAsync(db: Database.Database): Promis
 }
 
 export async function resolveStripeWebhookSecretAsync(db: Database.Database): Promise<string> {
-  const envSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-  if (envSecret) return envSecret;
+  const envResolved = resolveStripeWebhookSecretFromEnv();
+  if (envResolved.secret) return envResolved.secret;
 
   try {
     const row = db
       .prepare("SELECT value FROM system_settings WHERE key = 'stripe_webhook_secret'")
       .get() as { value?: string } | undefined;
-    if (row?.value && row.value.trim()) {
-      return row.value.trim();
+    const localSecret = sanitizeStripeCredential(row?.value);
+    if (isValidStripeWebhookSecret(localSecret)) {
+      return localSecret;
     }
   } catch {}
 
@@ -163,8 +175,8 @@ export async function resolveStripeWebhookSecretAsync(db: Database.Database): Pr
         supabase.from('system_settings').select('value').eq('key', 'stripe_webhook_secret').maybeSingle(),
         new Promise<any>((resolve) => setTimeout(() => resolve({ data: null }), 2500)),
       ]);
-      const remoteSecret = typeof data?.value === 'string' ? data.value.trim() : '';
-      if (remoteSecret) {
+      const remoteSecret = sanitizeStripeCredential(typeof data?.value === 'string' ? data.value : '');
+      if (isValidStripeWebhookSecret(remoteSecret)) {
         try {
           db.prepare(
             `INSERT INTO system_settings (key, value, updated_at) VALUES ('stripe_webhook_secret', ?, CURRENT_TIMESTAMP)
@@ -185,13 +197,14 @@ export async function getDashboardStripeClientAsync(db: Database.Database): Prom
   livemode: boolean;
 }> {
   const key = await resolveStripeSecretKeyAsync(db);
-  if (!key) {
+  const client = createStripeClientSafe(key);
+  if (!client) {
     return { stripe: null, configured: false, livemode: false };
   }
   return {
-    stripe: new Stripe(key),
+    stripe: client,
     configured: true,
-    livemode: key.startsWith('sk_live_') || key.startsWith('rk_live_'),
+    livemode: isLiveStripeKey(key),
   };
 }
 
@@ -534,7 +547,7 @@ export async function refreshStripeBalanceCache(
       pendingCents: Number(cached?.pending_cents || 0),
       currency: cached?.currency || 'brl',
       livemode: Boolean(cached?.livemode || livemode),
-      error: err?.message || 'Erro ao consultar saldo na Stripe.',
+      error: sanitizeStripeErrorMessage(err, 'Erro ao consultar saldo na Stripe.'),
     };
   }
 }
@@ -568,6 +581,7 @@ export async function syncStripeHistoryAndBalance(
   const run = async (): Promise<SyncStripeResult> => {
     const { stripe, configured, livemode } = await getDashboardStripeClientAsync(db);
     if (!configured || !stripe) {
+      const envDiagnostic = resolveStripeSecretKeyFromEnv();
       return {
         configured: false,
         livemode: false,
@@ -577,7 +591,9 @@ export async function syncStripeHistoryAndBalance(
         pendingCents: 0,
         currency: 'brl',
         syncedAt: new Date().toISOString(),
-        error: 'STRIPE_SECRET_KEY não configurada.',
+        error: envDiagnostic.detectedPublishableOnly
+          ? 'Apenas a chave publicável (pk_...) foi detectada nas variáveis de ambiente. Configure a chave secreta da Stripe (sk_live_... ou sk_test_...) em STRIPE_SECRET_KEY na Vercel e faça um novo deploy.'
+          : 'Chave secreta da Stripe (STRIPE_SECRET_KEY) não encontrada nas variáveis de ambiente do servidor. Verifique se está definida para o ambiente atual na Vercel (Production/Preview) e faça um novo deploy.',
       };
     }
 
@@ -645,14 +661,26 @@ export async function syncStripeHistoryAndBalance(
     let changedCount = 0;
     let syncError: string | undefined;
 
+    let useExpand = true;
     try {
       let startingAfter: string | undefined;
       for (let page = 0; page < 20; page++) {
-        const list = await stripe.charges.list({
-          limit: 100,
-          expand: ['data.balance_transaction'],
-          ...(startingAfter ? { starting_after: startingAfter } : {}),
-        });
+        let list: Stripe.ApiList<Stripe.Charge>;
+        try {
+          list = await stripe.charges.list({
+            limit: 100,
+            ...(useExpand ? { expand: ['data.balance_transaction'] } : {}),
+            ...(startingAfter ? { starting_after: startingAfter } : {}),
+          });
+        } catch (expandErr: any) {
+          const msg = String(expandErr?.message || '').toLowerCase();
+          if (useExpand && (msg.includes('permission') || msg.includes('balance_transaction') || msg.includes('expand'))) {
+            useExpand = false;
+            page--;
+            continue;
+          }
+          throw expandErr;
+        }
 
         for (const charge of list.data) {
           syncedCharges++;
@@ -758,8 +786,8 @@ export async function syncStripeHistoryAndBalance(
         startingAfter = list.data[list.data.length - 1].id;
       }
     } catch (err: any) {
-      syncError = err?.message || 'Erro ao sincronizar histórico da Stripe.';
-      console.error('[Stripe Sync] Erro ao paginar charges:', err?.message);
+      syncError = sanitizeStripeErrorMessage(err, 'Erro ao sincronizar histórico da Stripe.');
+      console.error('[Stripe Sync] Erro ao paginar charges:', sanitizeStripeErrorMessage(err));
     }
 
     const syncedAt = new Date().toISOString();

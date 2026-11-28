@@ -177,7 +177,7 @@ export function registerStripeRoutes(
             force: forceSync,
             silent: true,
           });
-          if (syncRes.error && syncRes.configured) {
+          if (syncRes.error) {
             syncError = syncRes.error;
           }
         }

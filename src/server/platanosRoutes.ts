@@ -11,6 +11,13 @@ import {
   refreshStripeBalanceCache,
   broadcastDashboardUpdate,
 } from './stripeDashboardService.ts';
+import {
+  createStripeClientSafe,
+  isValidStripeSecretKey,
+  resolveStripeSecretKeyFromEnv,
+  resolveStripeWebhookSecretFromEnv,
+  sanitizeStripeCredential,
+} from './stripeEnv.ts';
 
 export interface PlatanoPackageRow {
   id: string;
@@ -864,21 +871,20 @@ export function registerPlatanosRoutes(
     return false;
   }
   function getStripeKey(): string {
-    const envKey = (process.env.STRIPE_SECRET_KEY || '').trim();
-    if (envKey) return envKey;
+    const envResolved = resolveStripeSecretKeyFromEnv();
+    if (envResolved.key) return envResolved.key;
     try {
       const row = db
         .prepare("SELECT value FROM system_settings WHERE key = 'stripe_secret_key'")
         .get() as { value?: string } | undefined;
-      if (row?.value && row.value.trim()) return row.value.trim();
+      const localKey = sanitizeStripeCredential(row?.value);
+      if (isValidStripeSecretKey(localKey)) return localKey;
     } catch {}
     return '';
   }
 
   function getStripeClient(): Stripe | null {
-    const key = getStripeKey();
-    if (!key) return null;
-    return new Stripe(key);
+    return createStripeClientSafe(getStripeKey());
   }
 
   async function getStripeClientAsync(): Promise<Stripe | null> {
@@ -891,14 +897,14 @@ export function registerPlatanosRoutes(
           .select('value')
           .eq('key', 'stripe_secret_key')
           .maybeSingle();
-        const remoteKey = (data?.value || '').trim();
-        if (remoteKey) {
+        const remoteKey = sanitizeStripeCredential(data?.value);
+        if (isValidStripeSecretKey(remoteKey)) {
           try {
             db.prepare(
               "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('stripe_secret_key', ?, CURRENT_TIMESTAMP)"
             ).run(remoteKey);
           } catch {}
-          return new Stripe(remoteKey);
+          return createStripeClientSafe(remoteKey);
         }
       }
     } catch {}
@@ -967,7 +973,7 @@ export function registerPlatanosRoutes(
     return null;
   }
 
-  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+  const stripeWebhookSecret = resolveStripeWebhookSecretFromEnv().secret;
 
   // 1. Public list of closed Plátanos packages and itinerary prices
   app.get('/api/platanos/packages', (_req, res) => {

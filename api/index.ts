@@ -25,6 +25,12 @@ import {
   invalidateStripeSnapshotCacheServerless,
   type ServerlessFinanceContext,
 } from '../src/server/serverlessFinanceEngine.js';
+import {
+  createStripeClientSafe,
+  isValidStripeSecretKey,
+  resolveStripeSecretKeyFromEnv,
+  sanitizeStripeCredential,
+} from '../src/server/stripeEnv.js';
 
 const EXPECTED_FIREBASE_PROJECT_ID = 'inspired-nirvana-5dtd0';
 const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-monvian-57f74cb5-b162-47d6-acac-3774c885a8c4';
@@ -1402,9 +1408,13 @@ function formatCentsToBRL(cents: number): string {
 let cachedStripeKey = '';
 
 async function getStripeClientServerless(): Promise<Stripe | null> {
-  const envKey = (process.env.STRIPE_SECRET_KEY || '').trim();
-  if (envKey) return new Stripe(envKey);
-  if (cachedStripeKey) return new Stripe(cachedStripeKey);
+  const envResolved = resolveStripeSecretKeyFromEnv();
+  if (envResolved.key) {
+    return createStripeClientSafe(envResolved.key);
+  }
+  if (cachedStripeKey && isValidStripeSecretKey(cachedStripeKey)) {
+    return createStripeClientSafe(cachedStripeKey);
+  }
 
   try {
     const { data } = await supabase
@@ -1412,12 +1422,22 @@ async function getStripeClientServerless(): Promise<Stripe | null> {
       .select('value')
       .eq('key', 'stripe_secret_key')
       .maybeSingle();
-    const key = (data?.value || '').trim();
-    if (key) {
+    const key = sanitizeStripeCredential(data?.value);
+    if (isValidStripeSecretKey(key)) {
       cachedStripeKey = key;
-      return new Stripe(key);
+      return createStripeClientSafe(key);
     }
   } catch {}
+
+  try {
+    const fsDoc = await getFirestoreDocServerless('system_settings', 'stripe_secret_key');
+    const fsKey = sanitizeStripeCredential(typeof fsDoc?.value === 'string' ? fsDoc.value : '');
+    if (isValidStripeSecretKey(fsKey)) {
+      cachedStripeKey = fsKey;
+      return createStripeClientSafe(fsKey);
+    }
+  } catch {}
+
   return null;
 }
 

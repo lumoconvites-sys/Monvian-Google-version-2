@@ -1217,18 +1217,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       </header>
 
-      {/* Honest Stripe Configuration Notice (only shown if Stripe key is NOT configured or error occurs) */}
+      {/* Honest Stripe Configuration Notice (only shown if Stripe key is NOT configured) */}
       {!loading && data && !data.stripe.configured && (
-        <div className="mb-4 px-4 py-3.5 rounded-[22px] bg-white border border-amber-200/80 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-[13.5px] font-bold text-[#0D1526]">
-              Stripe não conectada
-            </p>
-            <p className="text-[12.5px] text-[#64748B] mt-0.5">
-              Configure a chave secreta da Stripe nas configurações de ambiente ou na aba Plátanos &amp; Stripe para sincronizar vendas e saldo real.
-            </p>
+        <div className="mb-4 px-4 py-3.5 rounded-[22px] bg-white border border-amber-200/80 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[13.5px] font-bold text-[#0D1526]">
+                Stripe não conectada
+              </p>
+              <p className="text-[12.5px] text-[#64748B] mt-0.5 leading-relaxed">
+                {data.syncError ||
+                  'Verifique se a chave secreta da Stripe (sk_live_... ou sk_test_...) está configurada em STRIPE_SECRET_KEY nas variáveis de ambiente da Vercel (Production e Preview) e faça um novo deploy.'}
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => fetchDashboardMetrics({ forceSync: true })}
+            className="text-[12.5px] font-bold text-[#1668FF] hover:underline shrink-0 cursor-pointer mt-0.5"
+          >
+            Sincronizar
+          </button>
+        </div>
+      )}
+
+      {/* Honest Stripe API Sync Warning (when configured but Stripe returned an API/permission error) */}
+      {!loading && data && data.stripe.configured && data.syncError && (
+        <div className="mb-4 px-4 py-3.5 rounded-[22px] bg-white border border-amber-200/80 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[13.5px] font-bold text-[#0D1526]">
+                Aviso na sincronização com a Stripe
+              </p>
+              <p className="text-[12.5px] text-[#64748B] mt-0.5 leading-relaxed">
+                {data.syncError}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchDashboardMetrics({ forceSync: true })}
+            className="text-[12.5px] font-bold text-[#1668FF] hover:underline shrink-0 cursor-pointer mt-0.5"
+          >
+            Tentar novamente
+          </button>
         </div>
       )}
 

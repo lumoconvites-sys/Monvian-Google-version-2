@@ -9,6 +9,12 @@ import {
   persistPurchaseToSupabase,
   persistUserToSupabase,
 } from '../services/supabaseSync.ts';
+import {
+  createStripeClientSafe,
+  isValidStripeSecretKey,
+  resolveStripeSecretKeyFromEnv,
+  sanitizeStripeCredential,
+} from './stripeEnv.ts';
 
 /**
  * Setup Financial Database Tables (Idempotent SQLite Schema)
@@ -362,19 +368,18 @@ export function registerFinancialRoutes(
   getAuthUser: (req: Request) => Promise<any> | any
 ) {
   function getStripeKey(): string {
-    const envKey = (process.env.STRIPE_SECRET_KEY || '').trim();
-    if (envKey) return envKey;
+    const envResolved = resolveStripeSecretKeyFromEnv();
+    if (envResolved.key) return envResolved.key;
     try {
       const row = db.prepare("SELECT value FROM system_settings WHERE key = 'stripe_secret_key'").get() as { value?: string } | undefined;
-      if (row?.value && row.value.trim()) return row.value.trim();
+      const localKey = sanitizeStripeCredential(row?.value);
+      if (isValidStripeSecretKey(localKey)) return localKey;
     } catch {}
     return '';
   }
 
   function getStripeClient(): Stripe | null {
-    const key = getStripeKey();
-    if (!key) return null;
-    return new Stripe(key);
+    return createStripeClientSafe(getStripeKey());
   }
 
   // ---------------------------------------------------------------------------

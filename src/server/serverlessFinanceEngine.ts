@@ -2,6 +2,13 @@ import crypto from 'crypto';
 import Stripe from 'stripe';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_CURATED_ITINERARIES } from '../data/defaultItineraries.js';
+import {
+  isValidStripeWebhookSecret,
+  resolveStripeSecretKeyFromEnv,
+  resolveStripeWebhookSecretFromEnv,
+  sanitizeStripeCredential,
+  sanitizeStripeErrorMessage,
+} from './stripeEnv.js';
 
 export type ServerlessDashboardPeriodKey =
   | '7d'
@@ -367,15 +374,16 @@ async function fetchFirestoreWalletsFallback(cfg?: {
 }
 
 async function resolveWebhookSecretServerless(supabase: SupabaseClient): Promise<string> {
-  const envSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-  if (envSecret) return envSecret;
+  const envResolved = resolveStripeWebhookSecretFromEnv();
+  if (envResolved.secret) return envResolved.secret;
   try {
     const { data } = await supabase
       .from('system_settings')
       .select('value')
       .eq('key', 'stripe_webhook_secret')
       .maybeSingle();
-    return String(data?.value || '').trim();
+    const dbSecret = sanitizeStripeCredential(data?.value);
+    return isValidStripeWebhookSecret(dbSecret) ? dbSecret : '';
   } catch {
     return '';
   }
@@ -413,13 +421,20 @@ async function syncStripeSnapshotServerless(
       if (rawVal) {
         const parsed = JSON.parse(rawVal) as StripeSnapshotCache;
         const syncedMs = parsed?.syncedAt ? Date.parse(parsed.syncedAt) : 0;
-        if (syncedMs && Date.now() - syncedMs < SNAPSHOT_TTL_MS && Array.isArray(parsed.transactions)) {
+        if (
+          parsed?.configured === true &&
+          !parsed?.syncError &&
+          syncedMs &&
+          Date.now() - syncedMs < SNAPSHOT_TTL_MS &&
+          Array.isArray(parsed.transactions)
+        ) {
           return parsed;
         }
       }
     } catch {}
   }
 
+  const envDiagnostic = resolveStripeSecretKeyFromEnv();
   const [stripe, webhookSecret] = await Promise.all([
     ctx.getStripeClient(),
     resolveWebhookSecretServerless(supabase),
@@ -428,169 +443,207 @@ async function syncStripeSnapshotServerless(
   let availableBalanceCents = 0;
   let pendingBalanceCents = 0;
   let currency = 'brl';
-  let livemode = false;
+  let livemode = envDiagnostic.livemode;
   let syncError: string | null = null;
   const txByCanonicalId = new Map<string, CanonicalStripeTx>();
   const seenSessionIds = new Set<string>();
   const seenPaymentIntentIds = new Set<string>();
 
   if (stripe) {
-    // 1. Live Stripe Balance
-    try {
-      const balance = await stripe.balance.retrieve();
-      const summary = extractStripeBalanceSummary(balance);
-      availableBalanceCents = summary.availableBalanceCents;
-      pendingBalanceCents = summary.pendingBalanceCents;
-      currency = summary.currency;
-      livemode = Boolean(balance.livemode);
-    } catch (err: any) {
-      syncError = err?.message || 'Erro ao consultar saldo na Stripe.';
+    const syncDeadlineMs = Date.now() + 7500;
+    const sessionMetaByPi = new Map<string, Stripe.Checkout.Session>();
+    const allPaidSessions: Stripe.Checkout.Session[] = [];
+    const allCharges: Stripe.Charge[] = [];
+
+    const fetchBalanceTask = async () => {
+      try {
+        const balance = await stripe.balance.retrieve();
+        const summary = extractStripeBalanceSummary(balance);
+        availableBalanceCents = summary.availableBalanceCents;
+        pendingBalanceCents = summary.pendingBalanceCents;
+        currency = summary.currency;
+        livemode = Boolean(balance.livemode || livemode);
+      } catch (err: any) {
+        syncError = sanitizeStripeErrorMessage(err, 'Erro ao consultar saldo na Stripe.');
+      }
+    };
+
+    const fetchSessionsTask = async () => {
+      try {
+        let startingAfter: string | undefined;
+        for (let page = 0; page < 5; page++) {
+          if (page > 0 && Date.now() > syncDeadlineMs) break;
+          const list = await stripe.checkout.sessions.list({
+            limit: 100,
+            ...(startingAfter ? { starting_after: startingAfter } : {}),
+          });
+          for (const session of list.data) {
+            seenSessionIds.add(session.id);
+            const piId =
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id || '';
+            if (piId) {
+              sessionMetaByPi.set(piId, session);
+            }
+            if (session.payment_status === 'paid') {
+              allPaidSessions.push(session);
+            }
+          }
+          if (!list.has_more || list.data.length === 0) break;
+          startingAfter = list.data[list.data.length - 1].id;
+        }
+      } catch {}
+    };
+
+    const fetchChargesTask = async () => {
+      let useExpand = true;
+      let startingAfter: string | undefined;
+      for (let page = 0; page < 6; page++) {
+        if (page > 0 && Date.now() > syncDeadlineMs) break;
+        try {
+          const list = await stripe.charges.list({
+            limit: 100,
+            ...(useExpand ? { expand: ['data.balance_transaction'] } : {}),
+            ...(startingAfter ? { starting_after: startingAfter } : {}),
+          });
+          for (const charge of list.data) {
+            allCharges.push(charge);
+          }
+          if (!list.has_more || list.data.length === 0) break;
+          startingAfter = list.data[list.data.length - 1].id;
+        } catch (err: any) {
+          const msg = String(err?.message || '').toLowerCase();
+          if (useExpand && (msg.includes('permission') || msg.includes('balance_transaction') || msg.includes('expand'))) {
+            useExpand = false;
+            page--;
+            continue;
+          }
+          syncError = syncError || sanitizeStripeErrorMessage(err, 'Erro ao sincronizar histórico da Stripe.');
+          break;
+        }
+      }
+    };
+
+    await Promise.all([fetchBalanceTask(), fetchSessionsTask(), fetchChargesTask()]);
+
+    for (const charge of allCharges) {
+      const piId =
+        typeof charge.payment_intent === 'string'
+          ? charge.payment_intent
+          : charge.payment_intent?.id || null;
+      if (piId) seenPaymentIntentIds.add(piId);
+      const session = piId ? sessionMetaByPi.get(piId) : undefined;
+      if (session?.id) seenSessionIds.add(session.id);
+
+      const bt =
+        charge.balance_transaction && typeof charge.balance_transaction === 'object'
+          ? (charge.balance_transaction as Stripe.BalanceTransaction)
+          : null;
+
+      const mergedMeta = {
+        ...(charge.metadata || {}),
+        ...(session?.metadata || {}),
+      };
+
+      let paymentStatus: CanonicalStripeTx['paymentStatus'] = 'pending';
+      if (charge.disputed) {
+        paymentStatus = 'disputed';
+      } else if (charge.refunded || (charge.amount_refunded > 0 && charge.amount_refunded >= charge.amount)) {
+        paymentStatus = 'refunded';
+      } else if (charge.amount_refunded > 0) {
+        paymentStatus = 'partially_refunded';
+      } else if (charge.status === 'succeeded' && charge.paid) {
+        paymentStatus = 'succeeded';
+      } else if (charge.status === 'failed') {
+        paymentStatus = 'failed';
+      }
+
+      const platanosAmount = Number(mergedMeta.platanosAmount || 0) || 0;
+      const itineraryId = mergedMeta.itineraryId || null;
+      const itineraryTitle = mergedMeta.itineraryTitle || null;
+      const canonicalId = piId || charge.id;
+      const feeCents = Number(bt?.fee || 0);
+      const netCents = bt?.net !== undefined ? Number(bt.net) : Math.max(0, charge.amount - feeCents);
+
+      txByCanonicalId.set(canonicalId, {
+        id: canonicalId,
+        stripeChargeId: charge.id,
+        stripePaymentIntentId: piId,
+        stripeSessionId: session?.id || null,
+        customerEmail:
+          mergedMeta.userEmail ||
+          charge.billing_details?.email ||
+          charge.receipt_email ||
+          session?.customer_details?.email ||
+          null,
+        productName:
+          itineraryTitle ||
+          charge.description ||
+          (platanosAmount > 0 ? `Recarga ${platanosAmount} Plátanos` : 'Venda Stripe'),
+        productType: itineraryId
+          ? 'itinerary_direct'
+          : mergedMeta.type || (platanosAmount > 0 ? 'platanos_topup' : 'other'),
+        packageId: mergedMeta.packageId || null,
+        platanosAmount,
+        itineraryId,
+        itineraryTitle,
+        grossAmountCents: Number(charge.amount || 0),
+        feeAmountCents: feeCents,
+        netAmountCents: netCents,
+        refundedAmountCents: Number(charge.amount_refunded || 0),
+        currency: (charge.currency || 'brl').toLowerCase(),
+        paymentStatus,
+        livemode: Boolean(charge.livemode),
+        purchasedAt: new Date(charge.created * 1000).toISOString(),
+      });
     }
 
-    // 2. Checkout Sessions (for itinerary/package metadata + zero-charge paid sessions)
-    const sessionMetaByPi = new Map<string, Stripe.Checkout.Session>();
-    try {
-      let startingAfter: string | undefined;
-      for (let page = 0; page < 5; page++) {
-        const list = await stripe.checkout.sessions.list({
-          limit: 100,
-          ...(startingAfter ? { starting_after: startingAfter } : {}),
-        });
-        for (const session of list.data) {
-          seenSessionIds.add(session.id);
-          const piId =
-            typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id || '';
-          if (piId) {
-            sessionMetaByPi.set(piId, session);
-          }
-          if (session.payment_status === 'paid' && !piId) {
-            const platanosAmount = Number(session.metadata?.platanosAmount || 0) || 0;
-            const itineraryId = session.metadata?.itineraryId || null;
-            const itineraryTitle = session.metadata?.itineraryTitle || null;
-            txByCanonicalId.set(session.id, {
-              id: session.id,
-              stripeChargeId: null,
-              stripePaymentIntentId: null,
-              stripeSessionId: session.id,
-              customerEmail:
-                session.metadata?.userEmail ||
-                session.customer_email ||
-                session.customer_details?.email ||
-                null,
-              productName:
-                itineraryTitle ||
-                (platanosAmount > 0 ? `Pacote ${platanosAmount} Plátanos` : 'Compra Monvian'),
-              productType: itineraryId ? 'itinerary_direct' : session.metadata?.type || 'platanos_topup',
-              packageId: session.metadata?.packageId || null,
-              platanosAmount,
-              itineraryId,
-              itineraryTitle,
-              grossAmountCents: session.amount_total ?? 0,
-              feeAmountCents: 0,
-              netAmountCents: session.amount_total ?? 0,
-              refundedAmountCents: 0,
-              currency: (session.currency || 'brl').toLowerCase(),
-              paymentStatus: 'succeeded',
-              livemode: Boolean(session.livemode),
-              purchasedAt: new Date(session.created * 1000).toISOString(),
-            });
-          }
-        }
-        if (!list.has_more || list.data.length === 0) break;
-        startingAfter = list.data[list.data.length - 1].id;
+    // Fallback: include any paid Checkout Sessions not already captured by charges.list
+    for (const session of allPaidSessions) {
+      const piId =
+        typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id || null;
+      const canonicalId = piId || session.id;
+      if (txByCanonicalId.has(canonicalId) || (piId && seenPaymentIntentIds.has(piId))) {
+        continue;
       }
-    } catch {}
-
-    // 3. Charges with expanded balance_transaction for exact gross/fee/net/refunds
-    try {
-      let startingAfter: string | undefined;
-      for (let page = 0; page < 8; page++) {
-        const list = await stripe.charges.list({
-          limit: 100,
-          expand: ['data.balance_transaction'],
-          ...(startingAfter ? { starting_after: startingAfter } : {}),
-        });
-        for (const charge of list.data) {
-          const piId =
-            typeof charge.payment_intent === 'string'
-              ? charge.payment_intent
-              : charge.payment_intent?.id || null;
-          if (piId) seenPaymentIntentIds.add(piId);
-          const session = piId ? sessionMetaByPi.get(piId) : undefined;
-          if (session?.id) seenSessionIds.add(session.id);
-
-          const bt =
-            charge.balance_transaction && typeof charge.balance_transaction === 'object'
-              ? (charge.balance_transaction as Stripe.BalanceTransaction)
-              : null;
-
-          const mergedMeta = {
-            ...(charge.metadata || {}),
-            ...(session?.metadata || {}),
-          };
-
-          let paymentStatus: CanonicalStripeTx['paymentStatus'] = 'pending';
-          if (charge.disputed) {
-            paymentStatus = 'disputed';
-          } else if (charge.refunded || (charge.amount_refunded > 0 && charge.amount_refunded >= charge.amount)) {
-            paymentStatus = 'refunded';
-          } else if (charge.amount_refunded > 0) {
-            paymentStatus = 'partially_refunded';
-          } else if (charge.status === 'succeeded' && charge.paid) {
-            paymentStatus = 'succeeded';
-          } else if (charge.status === 'failed') {
-            paymentStatus = 'failed';
-          }
-
-          const platanosAmount = Number(mergedMeta.platanosAmount || 0) || 0;
-          const itineraryId = mergedMeta.itineraryId || null;
-          const itineraryTitle = mergedMeta.itineraryTitle || null;
-          const canonicalId = piId || charge.id;
-          const feeCents = Number(bt?.fee || 0);
-          const netCents = bt?.net !== undefined ? Number(bt.net) : Math.max(0, charge.amount - feeCents);
-
-          txByCanonicalId.set(canonicalId, {
-            id: canonicalId,
-            stripeChargeId: charge.id,
-            stripePaymentIntentId: piId,
-            stripeSessionId: session?.id || null,
-            customerEmail:
-              mergedMeta.userEmail ||
-              charge.billing_details?.email ||
-              charge.receipt_email ||
-              session?.customer_details?.email ||
-              null,
-            productName:
-              itineraryTitle ||
-              charge.description ||
-              (platanosAmount > 0 ? `Recarga ${platanosAmount} Plátanos` : 'Venda Stripe'),
-            productType: itineraryId
-              ? 'itinerary_direct'
-              : mergedMeta.type || (platanosAmount > 0 ? 'platanos_topup' : 'other'),
-            packageId: mergedMeta.packageId || null,
-            platanosAmount,
-            itineraryId,
-            itineraryTitle,
-            grossAmountCents: Number(charge.amount || 0),
-            feeAmountCents: feeCents,
-            netAmountCents: netCents,
-            refundedAmountCents: Number(charge.amount_refunded || 0),
-            currency: (charge.currency || 'brl').toLowerCase(),
-            paymentStatus,
-            livemode: Boolean(charge.livemode),
-            purchasedAt: new Date(charge.created * 1000).toISOString(),
-          });
-        }
-        if (!list.has_more || list.data.length === 0) break;
-        startingAfter = list.data[list.data.length - 1].id;
-      }
-    } catch (err: any) {
-      syncError = syncError || err?.message || 'Erro ao sincronizar histórico da Stripe.';
+      const platanosAmount = Number(session.metadata?.platanosAmount || 0) || 0;
+      const itineraryId = session.metadata?.itineraryId || null;
+      const itineraryTitle = session.metadata?.itineraryTitle || null;
+      txByCanonicalId.set(canonicalId, {
+        id: canonicalId,
+        stripeChargeId: null,
+        stripePaymentIntentId: piId,
+        stripeSessionId: session.id,
+        customerEmail:
+          session.metadata?.userEmail ||
+          session.customer_email ||
+          session.customer_details?.email ||
+          null,
+        productName:
+          itineraryTitle ||
+          (platanosAmount > 0 ? `Pacote ${platanosAmount} Plátanos` : 'Compra Monvian'),
+        productType: itineraryId ? 'itinerary_direct' : session.metadata?.type || 'platanos_topup',
+        packageId: session.metadata?.packageId || null,
+        platanosAmount,
+        itineraryId,
+        itineraryTitle,
+        grossAmountCents: session.amount_total ?? 0,
+        feeAmountCents: 0,
+        netAmountCents: session.amount_total ?? 0,
+        refundedAmountCents: 0,
+        currency: (session.currency || 'brl').toLowerCase(),
+        paymentStatus: 'succeeded',
+        livemode: Boolean(session.livemode),
+        purchasedAt: new Date(session.created * 1000).toISOString(),
+      });
     }
   } else {
-    syncError = 'STRIPE_SECRET_KEY não configurada no servidor.';
+    syncError = envDiagnostic.detectedPublishableOnly
+      ? 'Apenas a chave publicável (pk_...) foi detectada nas variáveis de ambiente. Configure a chave secreta da Stripe (sk_live_... ou sk_test_...) em STRIPE_SECRET_KEY na Vercel e faça um novo deploy.'
+      : 'Chave secreta da Stripe (STRIPE_SECRET_KEY) não encontrada nas variáveis de ambiente do servidor. Verifique se está definida para o ambiente atual na Vercel (Production/Preview) e faça um novo deploy.';
   }
 
   // 4. Merge any persisted paid orders from system_settings or Supabase tables not already in Stripe response

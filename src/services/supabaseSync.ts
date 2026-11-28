@@ -1,5 +1,10 @@
 import { supabase, supabaseAnonClient } from './supabaseClient.ts';
 import { isPrimaryAdmin } from './firestoreSync.ts';
+import {
+  isValidStripeSecretKey,
+  resolveStripeSecretKeyFromEnv,
+  sanitizeStripeCredential,
+} from '../server/stripeEnv.ts';
 
 /**
  * Helper to execute a Supabase promise with a safe timeout so server routes never hang
@@ -923,7 +928,7 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
 
     // 5. Stripe Secret Key Synchronization
     try {
-      const envStripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+      const envStripeKey = resolveStripeSecretKeyFromEnv().key;
       if (envStripeKey) {
         try {
           sqliteDb
@@ -950,13 +955,14 @@ export async function syncDatabaseWithSupabase(sqliteDb: any): Promise<void> {
           3500,
           { data: null }
         );
-        if (remoteKeyRow?.value && remoteKeyRow.value.trim()) {
+        const remoteKey = sanitizeStripeCredential(remoteKeyRow?.value);
+        if (isValidStripeSecretKey(remoteKey)) {
           try {
             sqliteDb
               .prepare(
                 "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('stripe_secret_key', ?, CURRENT_TIMESTAMP)"
               )
-              .run(remoteKeyRow.value.trim());
+              .run(remoteKey);
           } catch {}
         }
       }
