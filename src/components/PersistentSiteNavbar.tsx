@@ -122,30 +122,23 @@ export const PersistentSiteNavbar: React.FC<PersistentSiteNavbarProps> = ({
       <style>{`
         .monvian-glass-nav {
           border-radius: 999px;
-          background: #171717;
+          background: #FFFFFF;
           backdrop-filter: none;
           -webkit-backdrop-filter: none;
-          border: 1px solid rgba(255, 255, 255, 0.10);
-          box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
-          color: #FFFFFF;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.04);
+          color: #000000;
           transform: translate3d(0, 0, 0);
           transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
         }
-        .monvian-glass-nav[data-nav-theme='dark'] {
-          background: #171717;
-          border: 1px solid rgba(255, 255, 255, 0.10);
-          box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
-          color: #FFFFFF;
-        }
+        .monvian-glass-nav[data-nav-theme='dark'],
         .monvian-glass-nav[data-nav-theme='light'] {
           color: #000000;
           background: #FFFFFF;
           border: 1px solid rgba(0, 0, 0, 0.08);
           box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.04);
         }
-        .monvian-glass-nav[data-nav-theme='dark'] button {
-          color: #FFFFFF;
-        }
+        .monvian-glass-nav[data-nav-theme='dark'] button,
         .monvian-glass-nav[data-nav-theme='light'] button {
           color: #000000;
         }
